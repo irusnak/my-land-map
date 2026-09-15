@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ШАРАШКІНА КОНТОРА — Землевпорядні послуги</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+
+  <!-- Leaflet CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  
+  <!-- Proj4js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.js"></script>
+
+  <!-- Firebase SDK (Compat версія для легкого підключення) -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
+  <style>
+    :root {
+      --bg-main: #030705;
+      --surface-glass: rgba(12, 22, 16, 0.65);
+      --surface-glass-hover: rgba(20, 36, 26, 0.78);
+      --surface-glass-active: rgba(28, 50, 36, 0.85);
+      --accent: #22c55e;
+      --accent-hover: #16a34a;
+      --accent-glow: rgba(34, 197, 94, 0.35);
+      --danger: #ef4444;
+      --info: #38bdf8;
+      --text-main: #f0fdf4;
+      --text-muted: #86efac;
+      --text-sub: #9ca3af;
+      --glass-border: rgba(34, 197, 94, 0.22);
+      --glass-border-light: rgba(255, 255, 255, 0.15);
+      --radius-sm: 8px;
+      --radius-md: 16px;
+      --radius-lg: 24px;
+      --radius-full: 9999px;
+      --glass-shadow: 0 16px 40px rgba(0, 0, 0, 0.75), inset 0 1px 1px rgba(255, 255, 255, 0.18);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      height: 100vh;
+      width: 100vw;
+      display: flex;
+      flex-direction: column;
+      background-color: var(--bg-main);
+      color: var(--text-main);
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    header {
+      background: rgba(6, 14, 9, 0.72);
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      border-bottom: 1px solid var(--glass-border);
+      padding: 0 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 1000;
+      height: 68px;
+      box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5), inset 0 -1px 1px rgba(255, 255, 255, 0.08);
+    }
+
+    .brand { display: flex; align-items: center; gap: 14px; }
+    .brand-icon {
+      width: 44px; height: 44px;
+      background: linear-gradient(135deg, rgba(34, 197, 94, 0.9), rgba(21, 128, 61, 0.8));
+      border-radius: var(--radius-md);
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 0 20px var(--accent-glow), inset 0 1px 1px rgba(255, 255, 255, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #000;
+    }
+
+    .brand-title h1 {
+      font-size: 1.15rem; font-weight: 800; letter-spacing: 0.6px;
+      color: #ffffff; text-transform: uppercase;
+      text-shadow: 0 0 12px rgba(34, 197, 94, 0.4);
+    }
+    .brand-title p { font-size: 0.72rem; color: var(--text-muted); opacity: 0.85; }
+    .header-actions { display: flex; align-items: center; gap: 12px; }
+
+    .btn {
+      background: var(--surface-glass);
+      backdrop-filter: blur(16px) saturate(180%);
+      -webkit-backdrop-filter: blur(16px) saturate(180%);
+      color: var(--text-main); font-weight: 600;
+      padding: 9px 16px; border-radius: var(--radius-md);
+      border: 1px solid var(--glass-border);
+      box-shadow: inset 0 1px 1px var(--glass-border-light), 0 4px 12px rgba(0, 0, 0, 0.3);
+      cursor: pointer; font-size: 0.84rem;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      display: inline-flex; align-items: center; gap: 8px;
+    }
+    .btn:hover {
+      background: var(--surface-glass-hover); border-color: var(--accent);
+      box-shadow: 0 0 16px var(--accent-glow), inset 0 1px 2px rgba(255, 255, 255, 0.3);
+      transform: translateY(-1px);
+    }
+    .btn-danger { background: rgba(239, 68, 68, 0.18); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.35); }
+    .btn-danger:hover { background: var(--danger); color: white; box-shadow: 0 0 18px rgba(239, 68, 68, 0.5); }
+
+    #main-container { position: relative; flex: 1; height: calc(100vh - 68px); width: 100vw; }
+    #map { width: 100%; height: 100%; background: #020503; }
+
+    .floating-search-bar {
+      position: absolute; top: 24px; left: 50%; transform: translateX(-50%);
+      z-index: 1000; width: 640px; max-width: 92vw;
+      background: var(--surface-glass);
+      backdrop-filter: blur(24px) saturate(190%);
+      -webkit-backdrop-filter: blur(24px) saturate(190%);
+      border: 1px solid var(--glass-border); border-radius: var(--radius-full);
+      padding: 6px 8px 6px 20px; display: flex; align-items: center; gap: 12px;
+      box-shadow: var(--glass-shadow);
+    }
+    .floating-search-bar:focus-within {
+      border-color: var(--accent); box-shadow: 0 0 24px var(--accent-glow), var(--glass-shadow);
+      background: var(--surface-glass-active);
+    }
+    .search-icon { color: var(--text-muted); font-size: 1.05rem; }
+    .floating-search-input {
+      flex: 1; background: transparent; border: none; outline: none;
+      color: var(--text-main); font-size: 0.92rem; font-family: inherit;
+    }
+    .floating-search-input::placeholder { color: rgba(134, 239, 172, 0.5); }
+
+    .floating-search-btn {
+      background: linear-gradient(135deg, #22c55e, #15803d); color: #022c22;
+      border: 1px solid rgba(255, 255, 255, 0.25); border-radius: var(--radius-full);
+      padding: 9px 22px; font-weight: 700; font-size: 0.85rem; cursor: pointer;
+      box-shadow: 0 4px 14px rgba(34, 197, 94, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.4);
+    }
+
+    .upload-dropdown-container { position: relative; display: inline-block; }
+    .round-upload-btn {
+      width: 40px; height: 40px; border-radius: 50%;
+      background: rgba(34, 197, 94, 0.15); border: 1px solid var(--glass-border);
+      color: var(--accent); font-size: 1.25rem; display: flex; align-items: center;
+      justify-content: center; cursor: pointer;
+    }
+    .upload-dropdown-container:hover .round-upload-btn { background: var(--accent); color: #022c22; }
+
+    .upload-menu {
+      display: none; position: absolute; top: 100%; right: 0; margin-top: 10px;
+      background: rgba(8, 16, 11, 0.82);
+      backdrop-filter: blur(24px) saturate(190%);
+      -webkit-backdrop-filter: blur(24px) saturate(190%);
+      border: 1px solid var(--glass-border); border-radius: var(--radius-md);
+      box-shadow: var(--glass-shadow); padding: 8px; min-width: 250px; z-index: 1001;
+      flex-direction: column; gap: 6px;
+    }
+    .upload-dropdown-container:hover .upload-menu { display: flex; }
+    .upload-menu-item {
+      display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+      color: var(--text-main); font-size: 0.84rem; border-radius: var(--radius-sm); cursor: pointer;
+    }
+    .upload-menu-item:hover { background: rgba(34, 197, 94, 0.2); color: #ffffff; }
+    .upload-menu-item input { display: none; }
+
+    .leaflet-popup-content-wrapper {
+      background: rgba(6, 14, 9, 0.85) !important;
+      backdrop-filter: blur(24px) saturate(200%) !important;
+      color: var(--text-main) !important; border: 1px solid var(--glass-border) !important;
+      border-radius: var(--radius-lg) !important; box-shadow: var(--glass-shadow) !important;
+      padding: 6px !important;
+    }
+    .leaflet-popup-tip { background: rgba(6, 14, 9, 0.85) !important; border: 1px solid var(--glass-border) !important; }
+    .popup-card { padding: 12px; min-width: 310px; max-width: 390px; }
+    .popup-title {
+      font-family: 'JetBrains Mono', monospace; font-size: 0.95rem; font-weight: 700;
+      color: var(--accent); border-bottom: 1px solid var(--glass-border);
+      padding-bottom: 8px; margin-bottom: 10px; cursor: pointer;
+    }
+    .popup-select-header { margin-bottom: 10px; border-bottom: 1px solid var(--glass-border); padding-bottom: 8px; }
+    .popup-select-label { font-size: 0.72rem; color: var(--text-muted); margin-bottom: 4px; font-weight: 600; display: flex; justify-content: space-between; }
+    .popup-select {
+      width: 100%; background: rgba(3, 10, 6, 0.9); color: var(--accent);
+      border: 1px solid var(--accent); border-radius: var(--radius-sm); padding: 6px 8px;
+      font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; font-weight: 700; cursor: pointer;
+    }
+    .popup-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    .popup-table td { padding: 6px 0; vertical-align: top; }
+    .popup-table td.lbl { color: var(--text-muted); width: 32%; padding-right: 8px; font-weight: 500; }
+    .popup-table td.val { color: var(--text-main); word-break: break-word; }
+    .popup-phone-input {
+      width: 100%; background: rgba(255, 255, 255, 0.06); border: 1px solid var(--glass-border);
+      border-radius: var(--radius-sm); color: var(--accent); font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82rem; padding: 4px 8px; outline: none;
+    }
+    .popup-actions { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--glass-border); display: flex; justify-content: space-between; gap: 8px; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <div class="brand-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2v3"/><path d="M12 5L6 21"/><path d="M12 5l6 16"/><path d="M8 15h8"/><circle cx="12" cy="3" r="1.5" fill="currentColor"/>
+        </svg>
+      </div>
+      <div class="brand-title">
+        <h1>ШАРАШКІНА КОНТОРА</h1>
+        <p>Геоінформаційні та землевпорядні послуги</p>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <button class="btn" id="btn-export-geojson">📤 Експорт GeoJSON</button>
+      <button class="btn btn-danger" id="btn-clear-db" title="Очистити базу даних">🗑️ Очистити базу</button>
+    </div>
+  </header>
+
+  <div id="main-container">
+    <div class="floating-search-bar">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="unified-search-input" class="floating-search-input" placeholder="Пошук за кадастровим, ПІБ, адресою або телефоном...">
+      <button class="floating-search-btn" id="btn-unified-search">Знайти</button>
+
+      <div class="upload-dropdown-container">
+        <div class="round-upload-btn" title="Додати файли XML / DXF">➕</div>
+        <div class="upload-menu">
+          <label class="upload-menu-item">
+            📄 Завантажити файл(и) XML / DXF
+            <input type="file" id="file-single-input" accept=".xml,.dxf" multiple>
+          </label>
+          <label class="upload-menu-item">
+            📁 Завантажити папку (XML / DXF)
+            <input type="file" id="file-folder-input" webkitdirectory directory multiple>
+          </label>
+        </div>
+      </div>
+    </div>
+    <div id="map"></div>
+  </div>
+
+  <script>
+    // --- ПІДКЛЮЧЕННЯ FIREBASE ---
+    const firebaseConfig = {
+      apiKey: "AIzaSyBj-nlEm3rvnpW0VPM3QT-2e371NM2T7uc",
+      authDomain: "mapland-f76bc.firebaseapp.com",
+      projectId: "mapland-f76bc",
+      storageBucket: "mapland-f76bc.firebasestorage.app",
+      messagingSenderId: "747096175007",
+      appId: "1:747096175007:web:184fa27d8c81d6b9418daa"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    document.addEventListener('DOMContentLoaded', () => {
+      proj4.defs([
+        ["SK63_C2", "+proj=tmerc +lat_0=0 +lon_0=26.5 +k=1 +x_0=2300000 +y_0=-9214.688 +ellps=krass +towgs84=23.57,-140.95,-79.8,0,0.35,0.79,-0.22 +units=m +no_defs"]
+      ]);
+
+      function transformPoint(x, y) {
+        if (!x || !y || isNaN(x) || isNaN(y)) return null;
+        if (x >= 43 && x <= 53 && y >= 22 && y <= 41) return [x, y];
+        if (y >= 43 && y <= 53 && x >= 22 && x <= 41) return [y, x];
+        let northing = x < y ? y : x;
+        let easting = x < y ? x : y;
+        if (easting < 1000000) easting += 2000000;
+        try {
+          const p = proj4("SK63_C2", "WGS84", [easting, northing]);
+          if (p && !isNaN(p[0]) && !isNaN(p[1])) return [p[1], p[0]];
+        } catch (e) {}
+        return null;
+      }
+
+      function isPointInPoly(pt, ring) {
+        let x = pt[0], y = pt[1], inside = false;
+        for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+          let xi = ring[i][0], yi = ring[i][1];
+          let xj = ring[j][0], yj = ring[j][1];
+          if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) inside = !inside;
+        }
+        return inside;
+      }
+
+      const map = L.map('map', { zoomControl: false }).setView([48.2917, 25.9352], 10);
+      L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+      const googleHybrid = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { maxZoom: 20 }).addTo(map);
+      const googleSat = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', { maxZoom: 20 });
+      const osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 });
+      
+      L.control.layers({
+        "🛰️ Google Гібрид": googleHybrid,
+        "📷 Google Супутник": googleSat,
+        "🗺️ OpenStreetMap": osm
+      }, null, { position: 'topright' }).addTo(map);
+
+      const parcelsLayerGroup = L.featureGroup().addTo(map);
+      let currentBoundaryLayer = null;
+      let dbParcels = [];
+      let mapPolygons = {};
+      let currentHighlightedPoly = null;
+      let currentPopup = null;
+
+      function getTagValue(parent, tagNames) {
+        if (!parent) return null;
+        const tagsUpper = tagNames.map(t => t.toUpperCase());
+        const all = parent.getElementsByTagName('*');
+        for (let i = 0; i < all.length; i++) {
+          if (tagsUpper.includes(all[i].tagName.toUpperCase())) {
+            const txt = all[i].textContent.trim();
+            if (txt) return txt;
+          }
+        }
+        return null;
+      }
+
+      function extractAddress(xmlDoc) {
+        const locationBlock = xmlDoc.getElementsByTagName('ParcelLocationInfo')[0] || xmlDoc;
+        const region = getTagValue(locationBlock, ['Region', 'RegionName']) || '';
+        const district = getTagValue(locationBlock, ['District', 'DistrictName']) || '';
+        const settlement = getTagValue(locationBlock, ['Settlement', 'SettlementName', 'Locality']) || '';
+        const street = getTagValue(locationBlock, ['StreetName', 'Street']) || '';
+        const building = getTagValue(locationBlock, ['BuildingNumber', 'House']) || '';
+        const parts = [region, district, settlement, street, building].filter(p => p.length > 0);
+        return parts.length > 0 ? parts.join(', ') : 'Адреса не вказана';
+      }
+
+      function parseUkrainianXML(xmlDoc, fileName, rawXmlText, index = 0) {
+        const pointMap = new Map();
+        const points = xmlDoc.getElementsByTagName('Point');
+        for (let i = 0; i < points.length; i++) {
+          const pt = points[i];
+          const pn = getTagValue(pt, ['PN', 'UIDP']);
+          const xEl = pt.getElementsByTagName('X')[0];
+          const yEl = pt.getElementsByTagName('Y')[0];
+          if (pn && xEl && yEl) {
+            const x = parseFloat(xEl.textContent.replace(',', '.'));
+            const y = parseFloat(yEl.textContent.replace(',', '.'));
+            if (!isNaN(x) && !isNaN(y)) pointMap.set(String(pn).trim(), [x, y]);
+          }
+        }
+
+        const polylineMap = new Map();
+        const polylines = xmlDoc.getElementsByTagName('PL');
+        for (let i = 0; i < polylines.length; i++) {
+          const pl = polylines[i];
+          const ulid = getTagValue(pl, ['ULID']);
+          const pElems = pl.getElementsByTagName('P');
+          const pList = [];
+          for (let j = 0; j < pElems.length; j++) { if (pElems[j].textContent.trim()) pList.push(pElems[j].textContent.trim()); }
+          if (ulid && pList.length > 0) polylineMap.set(String(ulid).trim(), pList);
+        }
+
+        let contours = [];
+        const parcelMetricInfos = xmlDoc.getElementsByTagName('ParcelMetricInfo');
+        if (parcelMetricInfos.length > 0) {
+          for (let pm = 0; pm < parcelMetricInfos.length; pm++) {
+            const externals = parcelMetricInfos[pm].getElementsByTagName('Externals');
+            if (externals.length > 0) {
+              const lines = externals[0].getElementsByTagName('Line');
+              const parcelPoints = [];
+              for (let l = 0; l < lines.length; l++) {
+                const ulid = getTagValue(lines[l], ['ULID']);
+                if (ulid && polylineMap.has(ulid)) {
+                  polylineMap.get(ulid).forEach(pId => {
+                    const coords = pointMap.get(pId);
+                    if (coords) {
+                      const last = parcelPoints[parcelPoints.length - 1];
+                      if (!last || last[0] !== coords[0] || last[1] !== coords[1]) parcelPoints.push(coords);
+                    }
+                  });
+                }
+              }
+              if (parcelPoints.length >= 3) contours.push(parcelPoints);
+            }
+          }
+        }
+
+        const zone = getTagValue(xmlDoc, ['CadastralZoneNumber']) || '';
+        const quarter = getTagValue(xmlDoc, ['CadastralQuarterNumber']) || '';
+        let cadNum = "Невизначений";
+        if (fileName) {
+          const fnMatch = fileName.match(/\b\d{10}:\d{2}:\d{3}:\d{4}\b/);
+          if (fnMatch) cadNum = fnMatch[0];
+        }
+        if (cadNum === "Невизначений" && zone && quarter) cadNum = `${zone}:${quarter}:0000`;
+
+        const propBlock = xmlDoc.getElementsByTagName('ProprietorInfo')[0];
+        let ownerText = "Відомості відсутні";
+        if (propBlock) {
+          const last = getTagValue(propBlock, ['LastName']) || '';
+          const first = getTagValue(propBlock, ['FirstName']) || '';
+          const mid = getTagValue(propBlock, ['MiddleName']) || '';
+          ownerText = `${last} ${first} ${mid}`.trim() || ownerText;
+        }
+
+        const useText = getTagValue(xmlDoc, ['Use']) || 'Для ведення сільського господарства';
+        const rawArea = getTagValue(xmlDoc, ['Size']) || '0.0000';
+        const numericArea = parseFloat(rawArea.replace(',', '.')) || 0;
+
+        return {
+          id: 'parcel_' + Date.now() + '_' + index + '_' + Math.random().toString(36).substr(2, 5),
+          fileType: 'xml', cadNum, ownerText, fullPurpose: useText,
+          addressText: extractAddress(xmlDoc), areaText: `${numericArea.toFixed(4)} га`,
+          phone: '', contours, fileName, rawXml: rawXmlText || ''
+        };
+      }
+
+      function parseDXF(dxfText, fileName, index = 0) {
+        const lines = dxfText.split(/\r?\n/);
+        let inEntities = false, currentEntity = null, currentVertices = [], allContours = [];
+        for (let i = 0; i < lines.length; i++) {
+          const code = lines[i].trim();
+          const value = lines[i + 1] ? lines[i + 1].trim() : ""; i++;
+          if (code === "2" && value === "ENTITIES") { inEntities = true; continue; }
+          if (code === "0" && value === "ENDSEC") {
+            if (inEntities) { inEntities = false; if (currentVertices.length >= 3) allContours.push(currentVertices); }
+            continue;
+          }
+          if (!inEntities) continue;
+          if (code === "0") {
+            if (currentVertices.length >= 3) allContours.push([...currentVertices]);
+            currentEntity = value; currentVertices = [];
+          } else if (currentEntity === "LWPOLYLINE" || currentEntity === "VERTEX") {
+            if (code === "10") tempX = parseFloat(value);
+            if (code === "20") {
+              currentVertices.push([tempX, parseFloat(value)]);
+            }
+          }
+        }
+        let cadNum = fileName ? fileName.replace(/\.[^/.]+$/, "") : "Ділянка DXF";
+        return {
+          id: 'dxf_' + Date.now() + '_' + index + '_' + Math.random().toString(36).substr(2, 5),
+          fileType: 'dxf', cadNum, contours: allContours, fileName, rawXml: dxfText || ''
+        };
+      }
+      let tempX = 0;
+
+      // --- СИНХРОНІЗАЦІЯ З FIREBASE В РЕАЛЬНОМУ ЧАСІ ---
+      db.collection("parcels").onSnapshot((snapshot) => {
+        dbParcels = [];
+        snapshot.forEach((doc) => {
+          dbParcels.push(doc.data());
+        });
+        renderDatabase();
+      });
+
+      function saveParcelToCloud(parcel) {
+        db.collection("parcels").doc(parcel.id).set(parcel).catch((err) => console.error("Помилка збереження в хмару:", err));
+      }
+
+      window.updateParcelPhone = function(id, value) {
+        const parcel = dbParcels.find(p => p.id === id);
+        if (parcel) {
+          parcel.phone = value.trim();
+          db.collection("parcels").doc(id).update({ phone: parcel.phone });
+        }
+      };
+
+      function resetHighlight() {
+        if (currentHighlightedPoly) {
+          currentHighlightedPoly.setStyle({ color: '#22c55e', weight: 2.5, fillColor: '#16a34a', fillOpacity: 0.38 });
+          currentHighlightedPoly = null;
+        }
+      }
+
+      window.highlightParcel = function(id) {
+        resetHighlight();
+        const poly = mapPolygons[id];
+        if (poly) {
+          poly.setStyle({ color: '#f59e0b', weight: 4.5, fillColor: '#fbbf24', fillOpacity: 0.65 });
+          poly.bringToFront();
+          currentHighlightedPoly = poly;
+        }
+      };
+
+      function renderDatabase() {
+        parcelsLayerGroup.clearLayers();
+        mapPolygons = {};
+        resetHighlight();
+
+        dbParcels.forEach(item => {
+          let polygonRings = [];
+          if (item.contours && item.contours.length > 0) {
+            polygonRings = item.contours.map(ring => ring.map(pt => transformPoint(pt[0], pt[1])).filter(pt => pt !== null)).filter(ring => ring.length >= 3);
+          }
+          item.wgsContours = polygonRings;
+
+          if (polygonRings.length > 0) {
+            const isDXF = item.fileType === 'dxf';
+            const polygon = L.polygon(polygonRings, {
+              color: isDXF ? '#38bdf8' : '#22c55e', weight: 2.5,
+              fillColor: isDXF ? '#0284c7' : '#16a34a', fillOpacity: 0.38
+            });
+
+            polygon.parcelId = item.id;
+            polygon.on('click', (e) => { L.DomEvent.stopPropagation(e); handleMapClick(e.latlng); });
+            parcelsLayerGroup.addLayer(polygon);
+            mapPolygons[item.id] = polygon;
+          }
+        });
+      }
+
+      window.activeMatchedParcels = [];
+      function handleMapClick(latlng) {
+        const clickPt = [latlng.lat, latlng.lng];
+        const matched = dbParcels.filter(p => p.wgsContours && p.wgsContours.some(ring => isPointInPoly(clickPt, ring)));
+        if (matched.length === 0) { resetHighlight(); return; }
+        openMultiParcelPopup(latlng, matched, 0);
+      }
+      map.on('click', (e) => handleMapClick(e.latlng));
+
+      window.openMultiParcelPopup = function(latlng, parcels, activeIndex = 0) {
+        window.activeMatchedParcels = parcels;
+        const item = parcels[activeIndex];
+        if (!item) return;
+        highlightParcel(item.id);
+
+        let headerHtml = parcels.length > 1 ? `
+          <div class="popup-select-header">
+            <div class="popup-select-label"><span>Знайдено ділянок: ${parcels.length}</span></div>
+            <select class="popup-select" onchange="switchActiveParcel(this.value)">
+              ${parcels.map((p, idx) => `<option value="${idx}" ${idx === activeIndex ? 'selected' : ''}>${p.cadNum}</option>`).join('')}
+            </select>
+          </div>` : `<div class="popup-title" onclick="highlightParcel('${item.id}')">${item.cadNum}</div>`;
+
+        let bodyHtml = item.fileType === 'dxf' ? `
+          <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px;">DXF файл</div>
+          <div class="popup-actions"><button class="btn" onclick="deleteParcel('${item.id}')">🗑️ Видалити</button></div>
+        ` : `
+          <table class="popup-table">
+            <tr><td class="lbl">Власник:</td><td class="val"><b>${item.ownerText}</b></td></tr>
+            <tr><td class="lbl">Тел.:</td><td class="val"><input type="tel" class="popup-phone-input" value="${item.phone || ''}" oninput="updateParcelPhone('${item.id}', this.value)"></td></tr>
+            <tr><td class="lbl">Адреса:</td><td class="val">${item.addressText}</td></tr>
+            <tr><td class="lbl">Площа:</td><td class="val">${item.areaText}</td></tr>
+          </table>
+          <div class="popup-actions"><button class="btn btn-danger" onclick="deleteParcel('${item.id}')">🗑️ Видалити</button></div>
+        `;
+
+        const fullContent = `<div class="popup-card">${headerHtml}${bodyHtml}</div>`;
+        if (!currentPopup) {
+          currentPopup = L.popup().setLatLng(latlng).setContent(fullContent).openOn(map);
+        } else {
+          currentPopup.setLatLng(latlng).setContent(fullContent);
+        }
+      };
+
+      window.switchActiveParcel = function(indexStr) {
+        const idx = parseInt(indexStr, 10);
+        if (window.activeMatchedParcels[idx] && currentPopup) {
+          openMultiParcelPopup(currentPopup.getLatLng(), window.activeMatchedParcels, idx);
+        }
+      };
+
+      window.deleteParcel = function(id) {
+        if (confirm('Видалити ділянку?')) {
+          db.collection("parcels").doc(id).delete();
+          map.closePopup();
+        }
+      };
+
+      async function processFiles(fileList) {
+        const files = Array.from(fileList).filter(f => f.name.toLowerCase().endsWith('.xml') || f.name.toLowerCase().endsWith('.dxf'));
+        const parser = new DOMParser();
+        for (let i = 0; i < files.length; i++) {
+          const text = await files[i].text();
+          let parsed = files[i].name.toLowerCase().endsWith('.dxf') ? parseDXF(text, files[i].name, i) : parseUkrainianXML(parser.parseFromString(text, "text/xml"), files[i].name, text, i);
+          if (parsed && parsed.contours && parsed.contours.length > 0) {
+            saveParcelToCloud(parsed);
+          }
+        }
+        alert('Файли завантажено в хмару!');
+      }
+
+      document.getElementById('file-single-input').addEventListener('change', (e) => processFiles(e.target.files));
+      document.getElementById('file-folder-input').addEventListener('change', (e) => processFiles(e.target.files));
+
+      document.getElementById('btn-clear-db').addEventListener('click', async () => {
+        if (confirm('Очистити всю базу?')) {
+          const snapshot = await db.collection("parcels").get();
+          snapshot.forEach(doc => doc.ref.delete());
+        }
+      });
+    });
+  </script>
+</body>
+</html>
