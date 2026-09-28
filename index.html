@@ -1,0 +1,1757 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Агро-Кадастр — Професійна ГІС Система</title>
+  
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            agro: {
+              bg: '#0A0D0B',
+              panel: '#121712',
+              deep: '#0D110D',
+              surface: '#1B221C',
+              hover: '#232B24',
+              text: '#F3F5F0',
+              muted: '#94A092',
+              green: '#4C9A5B',
+              greenlight: '#7BC489',
+              greendark: '#16321D',
+              gold: '#CDA047',
+              goldlight: '#E2C378',
+              clay: '#BD5B49',
+              claylight: '#D6836F',
+              locate: '#1A73E8'
+            }
+          },
+          fontFamily: {
+            sans: ['"IBM Plex Sans"', 'sans-serif'],
+            mono: ['"IBM Plex Mono"', 'monospace']
+          }
+        }
+      }
+    }
+  </script>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <style>
+    body { font-family: 'IBM Plex Sans', sans-serif; touch-action: manipulation; }
+    #map { height: 100vh; width: 100vw; z-index: 1; background-color: #0A0D0B; }
+    
+    .leaflet-top.leaflet-right {
+      top: 75px !important;
+    }
+
+    .leaflet-control-zoom, .leaflet-control-layers {
+      border: 1px solid rgba(255,255,255,0.12) !important;
+      border-radius: 12px !important;
+      overflow: hidden;
+      box-shadow: 0 20px 40px -12px rgba(0,0,0,0.7) !important;
+    }
+    .leaflet-control-zoom a {
+      background: rgba(18, 23, 18, 0.94) !important;
+      backdrop-filter: blur(16px) saturate(160%);
+      -webkit-backdrop-filter: blur(16px) saturate(160%);
+      color: #F3F5F0 !important;
+      border: none !important;
+      width: 34px !important;
+      height: 34px !important;
+      line-height: 34px !important;
+      font-size: 17px !important;
+    }
+    .leaflet-control-zoom-in { border-bottom: 1px solid rgba(255,255,255,0.08) !important; }
+    .leaflet-control-zoom a:hover { background: rgba(76, 154, 91, 0.28) !important; color: #7BC489 !important; }
+
+    .leaflet-control-layers-toggle {
+      background-color: rgba(18,23,18,0.94) !important;
+      width: 34px !important;
+      height: 34px !important;
+      filter: invert(1) brightness(1.8) saturate(0);
+    }
+    .leaflet-control-layers-expanded {
+      background: rgba(15,19,15,0.97) !important;
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      color: #F3F5F0 !important;
+      border-radius: 12px !important;
+      padding: 10px 14px !important;
+      font-size: 12px;
+      font-weight: 600;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .leaflet-control-layers-selector { accent-color: #4C9A5B; margin-right: 6px; }
+    .leaflet-control-layers-separator { border-color: rgba(255,255,255,0.1) !important; }
+    .leaflet-control-attribution { background: rgba(10,13,11,0.65) !important; color: #94A092 !important; font-size: 10px !important; }
+    .leaflet-control-attribution a { color: #CDA047 !important; }
+
+    .leaflet-popup-content-wrapper {
+      background: rgba(13, 17, 13, 0.96) !important;
+      backdrop-filter: blur(20px) saturate(180%) !important;
+      -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
+      color: #F3F5F0 !important;
+      border-radius: 16px !important;
+      border: 1px solid rgba(255, 255, 255, 0.12) !important;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8) !important;
+      padding: 0 !important;
+      overflow: hidden !important;
+    }
+    
+    .leaflet-popup-content {
+      margin: 0 !important;
+      width: 440px !important;
+      max-width: 90vw !important;
+      max-height: 80vh !important;
+      overflow-y: auto !important;
+      color: #F3F5F0 !important;
+    }
+
+    .pop-cad-box { padding: 12px 16px; background: rgba(255,255,255,0.05); border-bottom: 1px solid rgba(255,255,255,0.1); }
+    .pop-cad-lbl { font-size: 11px; font-weight: 800; color: #94A092; text-transform: uppercase; letter-spacing: 0.04em; }
+    .pop-cad-val { font-weight: 700; font-size: 15px; color: #DFB65B; font-family: 'IBM Plex Mono', monospace; margin-top: 3px; word-break: break-all; }
+
+    .pop-pai-box { padding: 10px 16px; border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.2); }
+    .pop-pai-lbl { font-size: 13px; font-weight: 700; color: #94A092; }
+    .pop-pai-val { background: #4C9A5B; color: #0A0D0B; font-weight: 800; font-size: 13px; padding: 2px 10px; border-radius: 999px; font-family: 'IBM Plex Mono', monospace; }
+
+    .pop-body { padding: 14px 16px; font-size: 13px; line-height: 1.5; color: #D3D9D0; }
+    .pop-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 8px; }
+    .pop-row-col { margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 8px; }
+    .pop-lbl { color: #94A092; font-weight: 500; font-size: 12px; }
+    .pop-val { font-weight: 700; color: #F3F5F0; font-size: 13px; }
+    .pop-val-area { font-weight: 800; color: #7BC489; font-size: 15px; font-family: 'IBM Plex Mono', monospace; }
+
+    .pop-save-btn { width: 100%; margin-top: 12px; background: #4C9A5B; color: #0A0D0B; border: none; padding: 10px; border-radius: 10px; font-weight: 800; font-size: 12px; cursor: pointer; transition: background 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px; }
+    .pop-save-btn:hover { background: #7BC489; }
+
+    @media (max-width: 640px) {
+      .leaflet-popup-content {
+        width: 290px !important;
+        max-width: 82vw !important;
+        max-height: 52vh !important;
+      }
+      .pop-cad-box { padding: 8px 12px; }
+      .pop-cad-lbl { font-size: 8px; }
+      .pop-cad-val { font-size: 11px; }
+
+      .pop-pai-box { padding: 6px 12px; }
+      .pop-pai-lbl { font-size: 10px; }
+      .pop-pai-val { font-size: 11px; padding: 1px 8px; }
+
+      .pop-body { padding: 10px 12px; font-size: 11px; }
+      .pop-row, .pop-row-col { margin-bottom: 6px; padding-bottom: 5px; }
+      .pop-lbl { font-size: 10px; }
+      .pop-val { font-size: 11px; }
+      .pop-val-area { font-size: 12px; }
+
+      .pop-save-btn { margin-top: 8px; padding: 7px; font-size: 10px; }
+    }
+
+    .leaflet-popup-tip { 
+      background: rgba(13, 17, 13, 0.96) !important;
+      border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    }
+
+    .polygon-id-label {
+      background: transparent !important;
+      border: none !important;
+      box-shadow: none !important;
+      padding: 0 !important;
+    }
+    .polygon-id-label::before {
+      display: none !important;
+    }
+    .pai-number-badge {
+      width: 28px;
+      height: 28px;
+      min-width: 28px;
+      border-radius: 50%;
+      border: 1.5px solid #12160f;
+      color: #12160f;
+      background: #F3F5F0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 700;
+      font-family: 'IBM Plex Mono', monospace;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.75);
+      line-height: 1;
+      user-select: none;
+      letter-spacing: -0.5px;
+      flex-shrink: 0;
+    }
+
+    .parcel-axis-label {
+      background: transparent !important;
+      border: none !important;
+    }
+    .parcel-axis-label > div {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1px;
+      white-space: nowrap;
+      color: #000000;
+      font-weight: 700;
+      font-family: 'IBM Plex Sans', sans-serif;
+      text-shadow: 0 0 3px rgba(255,255,255,0.85), 0 0 3px rgba(255,255,255,0.85), 0 1px 2px rgba(255,255,255,0.6);
+      line-height: 1.15;
+      pointer-events: none;
+    }
+
+    .tenant-info-label {
+      background: transparent !important;
+      border: none !important;
+    }
+    .tenant-info-label > div {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      white-space: nowrap;
+      pointer-events: none;
+      font-family: 'IBM Plex Sans', sans-serif;
+      background: rgba(255,255,255,0.92);
+      padding: 3px 8px;
+      border-radius: 4px;
+      box-shadow: 0 0 0 3px rgba(255,255,255,0.92);
+    }
+    .tenant-info-name {
+      font-style: italic;
+      font-weight: 800;
+      color: inherit;
+      line-height: 1.2;
+    }
+    .tenant-info-rule {
+      width: 100%;
+      height: 1.5px;
+      background: currentColor;
+      margin: 1px 0;
+      opacity: 0.9;
+    }
+    .tenant-info-area {
+      font-style: italic;
+      font-weight: 800;
+      color: inherit;
+      font-family: 'IBM Plex Mono', monospace;
+      line-height: 1.2;
+    }
+
+    .obrobitok-tooltip {
+      background: transparent !important;
+      border: none !important;
+      box-shadow: none !important;
+      padding: 0 !important;
+    }
+    .obrobitok-tooltip::before { display: none !important; }
+    .obrobitok-label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(15, 19, 15, 0.78);
+      padding: 4px 6px 4px 10px;
+      border-radius: 999px;
+      pointer-events: auto;
+      border: 1px solid rgba(255,255,255,0.15);
+    }
+    .obrobitok-area {
+      font-style: italic;
+      font-weight: 700;
+      font-size: 12px;
+      color: #F3F5F0;
+      font-family: 'IBM Plex Mono', monospace;
+      white-space: nowrap;
+    }
+    .obrobitok-plus {
+      width: 18px;
+      height: 18px;
+      min-width: 18px;
+      border-radius: 50%;
+      background: #5B7FBF;
+      color: #fff;
+      border: none;
+      font-size: 13px;
+      line-height: 1;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      padding: 0;
+    }
+    .obrobitok-plus:hover { background: #7194CC; }
+
+    .custom-scroll::-webkit-scrollbar,
+    .leaflet-popup-content::-webkit-scrollbar { width: 4px; }
+    .custom-scroll::-webkit-scrollbar-track,
+    .leaflet-popup-content::-webkit-scrollbar-track { background: transparent; }
+    .custom-scroll::-webkit-scrollbar-thumb,
+    .leaflet-popup-content::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.18); border-radius: 4px; }
+  </style>
+</head>
+<body class="m-0 p-0 overflow-hidden bg-agro-bg text-agro-text">
+
+  <!-- АВТОРИЗАЦІЯ -->
+  <div id="login-modal" class="fixed inset-0 z-[3000] flex items-center justify-center p-4 bg-cover bg-center" style="background-image: url('StockCake-Golden_Fields_Above-1530996-standard.jpg');">
+    <div class="absolute inset-0 bg-agro-bg/60 backdrop-blur-md"></div>
+    <div class="relative z-10 bg-agro-panel/90 border border-white/10 rounded-2xl p-6 sm:p-8 w-full max-w-md shadow-2xl backdrop-blur-2xl">
+      <div class="text-center mb-6 sm:mb-8">
+        <div class="inline-flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-agro-green/10 text-agro-greenlight mb-3 sm:mb-4 border border-agro-green/25 shadow-lg">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="9" rx="2"></rect><path d="M7.5 11V7.5a4.5 4.5 0 0 1 9 0V11"></path></svg>
+        </div>
+        <h2 class="text-lg sm:text-xl font-bold text-agro-text tracking-tight">ГІС Агро-Кадастр</h2>
+        <p class="text-xs sm:text-sm text-agro-muted mt-1">Авторизуйтесь для роботи з масивом полів</p>
+      </div>
+      <div class="space-y-4 sm:space-y-5">
+        <div>
+          <label class="block text-xs font-bold text-agro-muted uppercase tracking-wider mb-1.5">Логін</label>
+          <input type="text" id="auth-username" placeholder="admin або user" class="w-full bg-agro-bg/80 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-agro-text focus:outline-none focus:border-agro-green shadow-inner">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-agro-muted uppercase tracking-wider mb-1.5">Пароль</label>
+          <input type="password" id="auth-password" placeholder="••••" class="w-full bg-agro-bg/80 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-agro-text focus:outline-none focus:border-agro-green shadow-inner">
+        </div>
+        <div id="login-error" class="hidden text-xs text-agro-clay text-center font-medium bg-agro-clay/10 py-2 rounded-lg border border-agro-clay/25">Невірний логін або пароль!</div>
+        <button onclick="handleLogin()" class="w-full bg-agro-green hover:bg-agro-greenlight text-agro-bg font-bold py-3 rounded-xl text-sm transition-all shadow-lg active:scale-95 mt-2">
+          Увійти в систему
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- КНОПКА ГЕОЛОКАЦІЇ -->
+  <button onclick="locateUser()" title="Ваше місцерозташування" class="fixed right-4 bottom-6 sm:right-5 sm:bottom-8 z-[1000] bg-white hover:bg-slate-50 text-slate-700 w-11 h-11 sm:w-12 sm:h-12 rounded-full shadow-2xl border border-black/5 flex items-center justify-center transition-all active:scale-90 group focus:outline-none">
+    <svg class="w-5 h-5 sm:w-6 sm:h-6 text-slate-600 group-hover:text-agro-locate transition-colors" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3A8.994 8.994 0 0 0 13 3.06V1h-2v2.06A8.994 8.994 0 0 0 3.06 11H1v2h2.06A8.994 8.994 0 0 0 11 20.94V23h2v-2.06A8.994 8.994 0 0 0 20.94 13H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/>
+    </svg>
+  </button>
+
+  <!-- ПАНЕЛЬ УПРАВЛІННЯ -->
+  <aside id="sidebar" class="fixed top-2 left-2 right-2 sm:top-4 sm:left-4 sm:right-auto z-[1000] w-auto sm:w-[350px] bg-agro-panel/92 backdrop-blur-2xl text-agro-text rounded-2xl shadow-2xl border border-white/10 flex flex-col overflow-hidden transition-all duration-300">
+    <div onclick="toggleSidebar()" class="p-3 sm:p-4 bg-agro-deep/85 border-b border-white/10 flex items-center justify-between cursor-pointer select-none group">
+      <div class="flex items-center gap-3">
+        <div class="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-agro-greenlight ring-4 ring-agro-green/20 shadow-lg"></div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="font-extrabold text-xs sm:text-sm uppercase tracking-wider text-agro-text group-hover:text-agro-greenlight transition-colors">АГРО-КАДАСТР</h1>
+            <svg id="sidebar-chevron" class="w-4 h-4 text-agro-muted group-hover:text-agro-greenlight transition-transform duration-300 rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"></path>
+            </svg>
+          </div>
+          <p id="user-role-badge" class="text-[10px] sm:text-xs text-agro-greenlight/85 font-semibold">Гість</p>
+        </div>
+      </div>
+      <button onclick="event.stopPropagation(); handleLogout()" class="text-[11px] sm:text-xs font-semibold bg-white/5 hover:bg-agro-clay/20 hover:text-agro-claylight text-agro-muted px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg border border-white/10 transition-colors">
+        Вийти
+      </button>
+    </div>
+
+    <div id="sidebar-body" class="hidden flex flex-col max-h-[calc(100vh-120px)] transition-all duration-300">
+      <!-- ПОШУК -->
+      <div class="p-2.5 sm:p-3 bg-black/30 border-b border-white/5">
+        <div class="relative flex items-center">
+          <input type="text" id="search-input" placeholder="Кадастровий номер, № паю, орендар..." 
+                 onkeyup="if(event.key === 'Enter') performSearch()"
+                 class="w-full bg-agro-deep/90 border border-white/12 rounded-xl pl-8 pr-16 py-2 text-xs text-agro-text placeholder-agro-muted focus:outline-none focus:border-agro-green shadow-inner">
+          <svg class="w-3.5 h-3.5 text-agro-muted absolute left-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+          </svg>
+          <button onclick="performSearch()" class="absolute right-1.5 text-[11px] bg-agro-green hover:bg-agro-greenlight text-agro-bg font-bold px-2.5 py-1 rounded-lg transition-colors">
+            Шукати
+          </button>
+        </div>
+      </div>
+
+      <!-- АНАЛІТИКА -->
+      <div class="grid grid-cols-2 gap-2 p-3 pb-0 bg-black/15 text-center">
+        <div class="bg-agro-surface/70 p-2 sm:p-2.5 rounded-xl border border-white/5">
+          <span class="block text-[9px] uppercase font-bold text-agro-muted tracking-wider mb-0.5">Кількість паїв</span>
+          <span id="stat-count" class="text-base sm:text-lg font-extrabold text-agro-text font-mono">0</span>
+        </div>
+        <div class="bg-agro-surface/70 p-2 sm:p-2.5 rounded-xl border border-white/5">
+          <span class="block text-[9px] uppercase font-bold text-agro-muted tracking-wider mb-0.5">Площа</span>
+          <span id="stat-area" class="text-base sm:text-lg font-extrabold text-agro-greenlight font-mono">0.00 га</span>
+        </div>
+      </div>
+      <div class="p-3 pt-2 bg-black/15 border-b border-white/5">
+        <div class="bg-agro-surface/70 p-2 sm:p-2.5 rounded-xl border border-white/5 flex items-center justify-between">
+          <span class="text-[9px] uppercase font-bold text-agro-muted tracking-wider">Загальний обробіток</span>
+          <span id="stat-obrobitok" class="text-sm font-extrabold text-agro-text font-mono">0.00 га</span>
+        </div>
+      </div>
+
+      <!-- ФІЛЬТРИ -->
+      <div class="p-3 space-y-3 overflow-y-auto custom-scroll flex-1">
+
+        <!-- АКОРДЕОН: ПАЇ -->
+        <div class="border border-white/10 rounded-xl overflow-hidden bg-agro-surface/50">
+          <div onclick="toggleAccordion('parcel-acc')" class="w-full flex items-center justify-between p-2.5 bg-agro-deep/70 cursor-pointer select-none hover:bg-agro-hover">
+            <span class="inline-flex items-center gap-1.5 text-xs font-bold uppercase text-agro-text/90 tracking-wider">
+              <svg class="w-3.5 h-3.5 shrink-0 text-agro-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"></path></svg>
+              Паї
+            </span>
+            <div class="flex items-center gap-1.5">
+              <button onclick="event.stopPropagation(); toggleParcelLabelGroup(true)" class="text-[10px] text-agro-greenlight font-bold px-2 py-0.5 bg-agro-green/12 hover:bg-agro-green/25 rounded-full transition-colors">Всі</button>
+              <button onclick="event.stopPropagation(); toggleParcelLabelGroup(false)" class="text-[10px] text-agro-claylight font-bold px-2 py-0.5 bg-agro-clay/12 hover:bg-agro-clay/25 rounded-full transition-colors">Скинути</button>
+              <svg id="parcel-acc-chevron" class="w-4 h-4 text-agro-muted transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+              </svg>
+            </div>
+          </div>
+          <div id="parcel-acc-body" class="p-2 space-y-1.5 border-t border-white/5">
+            <label class="flex items-center gap-2 p-1.5 rounded-lg hover:bg-white/5 cursor-pointer text-xs transition-all">
+              <input type="checkbox" value="number" data-group="parcel-label" onchange="syncParcelLabelsAndRender()" class="w-3.5 h-3.5 accent-agro-green rounded bg-agro-panel border-white/20">
+              <span class="font-medium text-agro-text/90 text-[11px]">Номер ділянки</span>
+            </label>
+            <label class="flex items-center gap-2 p-1.5 rounded-lg hover:bg-white/5 cursor-pointer text-xs transition-all">
+              <input type="checkbox" value="cadnum" data-group="parcel-label" onchange="syncParcelLabelsAndRender()" class="w-3.5 h-3.5 accent-agro-green rounded bg-agro-panel border-white/20">
+              <span class="font-medium text-agro-text/90 text-[11px]">Кадастровий номер</span>
+            </label>
+            <label class="flex items-center gap-2 p-1.5 rounded-lg hover:bg-white/5 cursor-pointer text-xs transition-all">
+              <input type="checkbox" value="area" data-group="parcel-label" onchange="syncParcelLabelsAndRender()" class="w-3.5 h-3.5 accent-agro-green rounded bg-agro-panel border-white/20">
+              <span class="font-medium text-agro-text/90 text-[11px]">Площа</span>
+            </label>
+            <label class="flex items-center gap-2 p-1.5 rounded-lg hover:bg-white/5 cursor-pointer text-xs transition-all">
+              <input type="checkbox" value="tenant" data-group="parcel-label" onchange="syncParcelLabelsAndRender()" class="w-3.5 h-3.5 accent-agro-green rounded bg-agro-panel border-white/20">
+              <span class="font-medium text-agro-text/90 text-[11px]">Орендар</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- АКОРДЕОН: ОРЕНДАРІ -->
+        <div class="border border-white/10 rounded-xl overflow-hidden bg-agro-surface/50">
+          <div onclick="toggleAccordion('tenant-acc')" class="w-full flex items-center justify-between p-2.5 bg-agro-deep/70 cursor-pointer select-none hover:bg-agro-hover">
+            <span class="inline-flex items-center gap-1.5 text-xs font-bold uppercase text-agro-text/90 tracking-wider">
+              <svg class="w-3.5 h-3.5 shrink-0 text-agro-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="7.5" width="19" height="12.5" rx="2"></rect><path d="M8 7.5V5.5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+              Орендарі
+            </span>
+            <div class="flex items-center gap-1.5">
+              <button onclick="event.stopPropagation(); toggleGroup('tenant', true)" class="text-[10px] text-agro-greenlight font-bold px-2 py-0.5 bg-agro-green/12 hover:bg-agro-green/25 rounded-full transition-colors">Всі</button>
+              <button onclick="event.stopPropagation(); toggleGroup('tenant', false)" class="text-[10px] text-agro-claylight font-bold px-2 py-0.5 bg-agro-clay/12 hover:bg-agro-clay/25 rounded-full transition-colors">Скинути</button>
+              <svg id="tenant-acc-chevron" class="w-4 h-4 text-agro-muted transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+              </svg>
+            </div>
+          </div>
+          <div id="tenant-acc-body" class="p-2 space-y-1.5 max-h-40 overflow-y-auto custom-scroll border-t border-white/5">
+            <div id="tenant-filters" class="space-y-1.5"></div>
+          </div>
+        </div>
+
+        <!-- ЗАГАЛЬНИЙ ОБРОБІТОК -->
+        <div class="border border-white/10 rounded-xl overflow-hidden bg-agro-surface/50 p-2.5">
+          <label class="flex items-center justify-between cursor-pointer select-none">
+            <span class="inline-flex items-center gap-1.5 text-xs font-bold uppercase text-agro-text/90 tracking-wider">
+              <svg class="w-3.5 h-3.5 shrink-0 text-agro-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect></svg>
+              Загальний обробіток
+            </span>
+            <input type="checkbox" id="obrobitok-toggle" onchange="toggleObrobitok(this.checked)" class="w-3.5 h-3.5 accent-agro-green rounded bg-agro-panel border-white/20">
+          </label>
+        </div>
+
+        <!-- АКОРДЕОН: КУЛЬТУРИ -->
+        <div class="border border-white/10 rounded-xl overflow-hidden bg-agro-surface/50">
+          <div onclick="toggleAccordion('crop-acc')" class="w-full flex items-center justify-between p-2.5 bg-agro-deep/70 cursor-pointer select-none hover:bg-agro-hover">
+            <span class="inline-flex items-center gap-1.5 text-xs font-bold uppercase text-agro-text/90 tracking-wider">
+              <svg class="w-3.5 h-3.5 shrink-0 text-agro-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.5 19 2c1 2 2 4.2 2 8 0 5.5-4.8 10-10 10Z"></path><path d="M2 21c0-3 1.8-5.4 5-6 2.5-.5 4-2 4-6"></path></svg>
+              Культури
+            </span>
+            <div class="flex items-center gap-1.5">
+              <button onclick="event.stopPropagation(); toggleGroup('crop', true)" class="text-[10px] text-agro-greenlight font-bold px-2 py-0.5 bg-agro-green/12 hover:bg-agro-green/25 rounded-full transition-colors">Всі</button>
+              <button onclick="event.stopPropagation(); toggleGroup('crop', false)" class="text-[10px] text-agro-claylight font-bold px-2 py-0.5 bg-agro-clay/12 hover:bg-agro-clay/25 rounded-full transition-colors">Скинути</button>
+              <svg id="crop-acc-chevron" class="w-4 h-4 text-agro-muted transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+              </svg>
+            </div>
+          </div>
+          <div id="crop-acc-body" class="p-2 space-y-1.5 max-h-40 overflow-y-auto custom-scroll border-t border-white/5">
+            <div id="crop-filters" class="space-y-1.5"></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </aside>
+
+  <datalist id="all-cadnums-list"></datalist>
+
+  <!-- СПИСОК ДІЛЯНОК (для шару "Загальний обробіток") -->
+  <div id="obrobitok-modal" class="hidden fixed inset-0 z-[3500] flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="window.closeObrobitokList()"></div>
+    <div class="relative z-10 bg-agro-panel border border-white/15 rounded-2xl p-5 w-full max-w-sm shadow-2xl max-h-[70vh] overflow-y-auto custom-scroll">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="font-bold text-sm text-agro-text">Список ділянок</h3>
+        <button onclick="window.closeObrobitokList()" class="text-agro-muted hover:text-agro-text text-lg leading-none">&times;</button>
+      </div>
+      <div id="obrobitok-modal-body" class="text-xs text-agro-text/90 space-y-1"></div>
+    </div>
+  </div>
+
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <script>
+    const SUPABASE_URL = 'https://nwojstekgkmlrebpsbxl.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_EKyY2G-Rj-AiDpJsP8q7Sw_NDuMtmf6';
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    let currentUserRole = localStorage.getItem('user_role') || null;
+    let currentSelectedYear = '2026';
+    let userLocationMarker = null;
+
+    function escapeHtml(str) {
+      return String(str || '')
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    function toggleSidebar() {
+      document.getElementById('sidebar-body').classList.toggle('hidden');
+      document.getElementById('sidebar-chevron').classList.toggle('rotate-180');
+    }
+
+    function toggleAccordion(id) {
+      const body = document.getElementById(`${id}-body`);
+      const chevron = document.getElementById(`${id}-chevron`);
+      body.classList.toggle('hidden');
+      chevron.classList.toggle('rotate-180');
+    }
+
+    function checkAuth() {
+      if (!currentUserRole) {
+        document.getElementById('login-modal').classList.remove('hidden');
+      } else {
+        document.getElementById('login-modal').classList.add('hidden');
+        document.getElementById('user-role-badge').innerText = currentUserRole === 'admin' ? 'Адміністратор' : 'Переглядач';
+      }
+    }
+
+    function handleLogin() {
+      const u = document.getElementById('auth-username').value.trim();
+      const p = document.getElementById('auth-password').value.trim();
+      const err = document.getElementById('login-error');
+
+      if (u === 'admin' && p === '8878') currentUserRole = 'admin';
+      else if (u === 'user' && p === '1111') currentUserRole = 'user';
+      else { err.classList.remove('hidden'); return; }
+
+      err.classList.add('hidden');
+      localStorage.setItem('user_role', currentUserRole);
+      checkAuth();
+      renderMap();
+    }
+
+    function handleLogout() {
+      localStorage.removeItem('user_role');
+      currentUserRole = null;
+      checkAuth();
+    }
+
+    const map = L.map('map', { preferCanvas: true, zoomControl: false }).setView([48.3, 25.9], 5);
+    let hasFitInitialBounds = false;
+    L.control.zoom({ position: 'topright' }).addTo(map);
+
+    map.createPane('obrobitokPane');
+    map.getPane('obrobitokPane').style.zIndex = 450;
+    map.getPane('obrobitokPane').style.pointerEvents = 'none';
+    map.createPane('cropInfoPane');
+    map.getPane('cropInfoPane').style.zIndex = 350;
+    map.getPane('cropInfoPane').style.pointerEvents = 'none';
+    map.createPane('obrobitokLabelPane');
+    map.getPane('obrobitokLabelPane').style.zIndex = 700;
+    map.getPane('obrobitokLabelPane').style.pointerEvents = 'none';
+
+    const basemaps = {
+      "Google Супутник": L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { maxZoom: 20 }),
+      "OpenStreetMap": L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 })
+    };
+    basemaps["Google Супутник"].addTo(map);
+    L.control.layers(basemaps, null, { position: 'topright' }).addTo(map);
+
+    function locateUser() {
+      if (!navigator.geolocation) return alert('Геолокація не підтримується');
+      navigator.geolocation.getCurrentPosition(pos => {
+        const { latitude, longitude } = pos.coords;
+        if (userLocationMarker) map.removeLayer(userLocationMarker);
+        userLocationMarker = L.circleMarker([latitude, longitude], {
+          radius: 8, fillColor: '#1A73E8', color: '#FFFFFF', weight: 3, opacity: 1, fillOpacity: 1
+        }).addTo(map).bindPopup('<b>Ви тут</b>').openPopup();
+        map.setView([latitude, longitude], 17);
+      });
+    }
+
+    // Розпізнавання культури за підрядком (щоб "Озима Пшениця", "Ярий Ячмінь" тощо
+    // коректно зіставлялись зі своєю іконкою/кольором незалежно від приставок)
+    const cropDefs = [
+      ['соняшник', '#E3AE49', '<circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3.2M12 18.3v3.2M21.5 12h-3.2M5.7 12H2.5M18.5 5.5l-2.3 2.3M7.8 16.2l-2.3 2.3M18.5 18.5l-2.3-2.3M7.8 7.8 5.5 5.5"/>'],
+      ['кукурудз', '#C9A227', '<path d="M12 2c2.5 0 4.2 3.3 4.2 8.5S14.5 21 12 21s-4.2-5.3-4.2-10.5S9.5 2 12 2Z"/><path d="M8.6 6.5h6.8M8.1 10h7.8M8.1 13.5h7.8M8.6 17h6.8"/><path d="M8 4.5c-1.8-1.2-3.8-.8-5 .5M16 4.5c1.8-1.2 3.8-.8 5 .5"/>'],
+      ['гречк', '#8B5FBF', '<path d="M8 9 11 15H5Z"/><path d="M16 9 19 15H13Z"/><path d="M12 3 15 9H9Z"/>'],
+      ['помідор', '#C1503A', '<circle cx="12" cy="14" r="7"/><path d="M12 7V4M9 5.5 12 7l3-1.5"/>'],
+      ['томат', '#C1503A', '<circle cx="12" cy="14" r="7"/><path d="M12 7V4M9 5.5 12 7l3-1.5"/>'],
+      ['малин', '#C4487A', '<circle cx="12" cy="7.5" r="2"/><circle cx="8.3" cy="11" r="2"/><circle cx="15.7" cy="11" r="2"/><circle cx="12" cy="14.3" r="2"/><path d="M12 5.2V2.5"/>'],
+      ['пшениц', '#D9C36A', '<path d="M12 3v18"/><path d="M12 6 9 8M12 6l3 2M12 9.5 9 11.5M12 9.5l3 2M12 13 9 15M12 13l3 2M12 16.5 9.5 18.3M12 16.5l2.5 1.8"/>'],
+      ['жито', '#CBB56A', '<path d="M12 3v18"/><path d="M12 6 9 8M12 6l3 2M12 9.5 9 11.5M12 9.5l3 2M12 13 9 15M12 13l3 2M12 16.5 9.5 18.3M12 16.5l2.5 1.8"/>'],
+      ['ячмін', '#A99A5E', '<path d="M12 2v20"/><path d="M12 4.5 8.5 2.5M12 4.5l3.5-2M12 7.5 8 5M12 7.5l4-2.5M12 10.5 8 8M12 10.5l4-2.5M12 13.5 8 11M12 13.5l4-2.5M12 16.5 8.5 14.5M12 16.5l3.5-2M12 19 9 17.5M12 19l3-1.5"/>'],
+      ['овес', '#C7B98A', '<path d="M12 2v17"/><path d="M12 6c1.2-1 2.6-1 3.3 0M12 6c-1.2-1-2.6-1-3.3 0"/><ellipse cx="15.6" cy="6.8" rx="1.2" ry=".8" transform="rotate(35 15.6 6.8)"/><ellipse cx="8.4" cy="6.8" rx="1.2" ry=".8" transform="rotate(-35 8.4 6.8)"/><path d="M12 10.5c1.2-1 2.6-1 3.3 0M12 10.5c-1.2-1-2.6-1-3.3 0"/><ellipse cx="15.6" cy="11.3" rx="1.2" ry=".8" transform="rotate(35 15.6 11.3)"/><ellipse cx="8.4" cy="11.3" rx="1.2" ry=".8" transform="rotate(-35 8.4 11.3)"/><path d="M12 15c1.2-1 2.6-1 3.3 0M12 15c-1.2-1-2.6-1-3.3 0"/><ellipse cx="15.6" cy="15.8" rx="1.2" ry=".8" transform="rotate(35 15.6 15.8)"/><ellipse cx="8.4" cy="15.8" rx="1.2" ry=".8" transform="rotate(-35 8.4 15.8)"/>'],
+      ['вівс', '#C7B98A', '<path d="M12 2v17"/><path d="M12 6c1.2-1 2.6-1 3.3 0M12 6c-1.2-1-2.6-1-3.3 0"/><ellipse cx="15.6" cy="6.8" rx="1.2" ry=".8" transform="rotate(35 15.6 6.8)"/><ellipse cx="8.4" cy="6.8" rx="1.2" ry=".8" transform="rotate(-35 8.4 6.8)"/><path d="M12 10.5c1.2-1 2.6-1 3.3 0M12 10.5c-1.2-1-2.6-1-3.3 0"/><ellipse cx="15.6" cy="11.3" rx="1.2" ry=".8" transform="rotate(35 15.6 11.3)"/><ellipse cx="8.4" cy="11.3" rx="1.2" ry=".8" transform="rotate(-35 8.4 11.3)"/><path d="M12 15c1.2-1 2.6-1 3.3 0M12 15c-1.2-1-2.6-1-3.3 0"/><ellipse cx="15.6" cy="15.8" rx="1.2" ry=".8" transform="rotate(35 15.6 15.8)"/><ellipse cx="8.4" cy="15.8" rx="1.2" ry=".8" transform="rotate(-35 8.4 15.8)"/>'],
+      ['просо', '#AD8642', '<path d="M12 3c2.5 3 3.5 6 3 10-.4 3-1.5 5.5-3 8-1.5-2.5-2.6-5-3-8-.5-4 .5-7 3-10Z"/>'],
+      ['батат', '#D97A3D', '<path d="M5 14c-1-3 1-6 4-6 2 0 2.5 1.5 4.5 1.5S17 8 19 9.5c2 1.5 2 4.5 0 6.5-2.5 2.5-6 2-9 1.5-3-.5-4-.5-5-3Z"/>'],
+      ['картопл', '#D9954A', '<path d="M5 14c-1-3 1-6 4-6 2 0 2.5 1.5 4.5 1.5S17 8 19 9.5c2 1.5 2 4.5 0 6.5-2.5 2.5-6 2-9 1.5-3-.5-4-.5-5-3Z"/>'],
+      ['ріпак', '#EED868', '<path d="M12 3c1.5 0 2 1.5 2 3s-.5 3-2 3-2-1.5-2-3 .5-3 2-3ZM12 15c1.5 0 2 1.5 2 3s-.5 3-2 3-2-1.5-2-3 .5-3 2-3ZM21 12c0 1.5-1.5 2-3 2s-3-.5-3-2 1.5-2 3-2 3 .5 3 2ZM9 12c0 1.5-1.5 2-3 2s-3-.5-3-2 1.5-2 3-2 3 .5 3 2Z"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/>'],
+      ['рапс', '#EED868', '<path d="M12 3c1.5 0 2 1.5 2 3s-.5 3-2 3-2-1.5-2-3 .5-3 2-3ZM12 15c1.5 0 2 1.5 2 3s-.5 3-2 3-2-1.5-2-3 .5-3 2-3ZM21 12c0 1.5-1.5 2-3 2s-3-.5-3-2 1.5-2 3-2 3 .5 3 2ZM9 12c0 1.5-1.5 2-3 2s-3-.5-3-2 1.5-2 3-2 3 .5 3 2Z"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/>'],
+      ['горох', '#8FAE5C', '<path d="M6 16c-1.5-3-1-7 2-9.5"/><path d="M18 16c1.5-3 1-7-2-9.5"/><circle cx="9" cy="8" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="6" r="1.3" fill="currentColor" stroke="none"/><circle cx="15" cy="8" r="1.3" fill="currentColor" stroke="none"/>'],
+      ['соя', '#5B8C5A', '<path d="M7 15c-2-1-2.5-4-1-6 1.2-1.6 3.3-2 5-1"/><path d="M17 9c2 1 2.5 4 1 6-1.2 1.6-3.3 2-5 1"/><circle cx="9" cy="10.5" r=".6" fill="currentColor" stroke="none"/><circle cx="15" cy="13.5" r=".6" fill="currentColor" stroke="none"/>']
+    ];
+    // Значок-заглушка (пагін/паросток) для культур, яких ще немає у списку вище
+    const defaultCropIcon = '<path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.5 19 2c1 2 2 4.2 2 8 0 5.5-4.8 10-10 10Z"/><path d="M2 21c0-3 1.8-5.4 5-6 2.5-.5 4-2 4-6"/>';
+
+    function findCropDef(crop) {
+      const cropLower = String(crop || '').trim().toLowerCase();
+      for (let i = 0; i < cropDefs.length; i++) {
+        if (cropLower.includes(cropDefs[i][0])) return cropDefs[i];
+      }
+      return null;
+    }
+
+    function getCropIconPaths(crop) {
+      const def = findCropDef(crop);
+      return def ? def[2] : defaultCropIcon;
+    }
+
+    function cropIconSvg(crop, color, size) {
+      return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="color:${color};">${getCropIconPaths(crop)}</svg>`;
+    }
+
+    // Нові (ще не підібрані вручну) культури також отримують гарантовано унікальний
+    // колір — та сама логіка "золотого кута", що й для орендарів, але зі своєю
+    // послідовністю, щоб не залежати від кількості вже відомих орендарів
+    const dynamicCropColors = {};
+    let cropColorIdx = 0;
+
+    function nextCropColor(index) {
+      const hue = (index * 137.508 + 40) % 360;
+      const saturation = 55 + (index % 3) * 8;
+      const lightness = 48 + (index % 3) * 8;
+      return hslToHex(hue, saturation, lightness);
+    }
+
+    function getCropColor(crop) {
+      const def = findCropDef(crop);
+      if (def) return def[1];
+      const cropLower = String(crop || '').trim().toLowerCase();
+      if (!dynamicCropColors[cropLower]) {
+        dynamicCropColors[cropLower] = nextCropColor(cropColorIdx);
+        cropColorIdx++;
+      }
+      return dynamicCropColors[cropLower];
+    }
+
+    const tenantColors = {};
+    const curatedPalette = ['#4C9A5B', '#3E7FB0', '#C99A3D', '#8B5FBF', '#C1503A', '#4FA69A', '#B0568B', '#D97A3D', '#6B8E4E', '#A85C8A', '#5C7CBF', '#B09040'];
+    let tenantIdx = 0;
+
+    // HSL -> HEX для алгоритмічної генерації кольорів понад підібрану палітру
+    function hslToHex(h, s, l) {
+      s /= 100; l /= 100;
+      const k = n => (n + h / 30) % 12;
+      const a = s * Math.min(l, 1 - l);
+      const f = n => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+      const toHex = x => Math.round(255 * x).toString(16).padStart(2, '0');
+      return `#${toHex(f(0))}${toHex(f(8))}${toHex(f(4))}`;
+    }
+
+    // Перші орендарі отримують підібрані вручну кольори; далі — кольори по колу
+    // відтінків із кроком "золотого кута", щоб жодні два орендарі не збігались,
+    // скільки б їх не було на карті
+    function nextTenantColor(index) {
+      if (index < curatedPalette.length) return curatedPalette[index];
+      const n = index - curatedPalette.length;
+      const hue = (n * 137.508) % 360;
+      const saturation = 52 + (n % 3) * 10;
+      const lightness = 42 + (n % 4) * 7;
+      return hslToHex(hue, saturation, lightness);
+    }
+
+    // Вдосконалена функція для визначення кольору орендаря
+    function getTenantColor(tenant) {
+      if (!tenant) return '#94A3B8';
+      const t = String(tenant).trim().toLowerCase();
+      
+      // Якщо орендар відсутній або вказано порожнє значення — повертаємо нейтральний сірий
+      if (t === '' || t === '—' || t === 'null' || t === 'undefined' || t === 'немає' || t === 'без орендаря' || t === '0' || t === 'б/н') {
+        return '#94A3B8';
+      }
+      
+      if (!tenantColors[tenant]) {
+        tenantColors[tenant] = nextTenantColor(tenantIdx);
+        tenantIdx++;
+      }
+      return tenantColors[tenant];
+    }
+
+    // Договір вважається "тим, що спливає" якщо до дати закінчення залишилось
+    // 2 місяці або менше (включно з уже простроченими договорами)
+    function isContractExpiringSoon(contractEnd) {
+      if (!contractEnd) return false;
+      const end = new Date(contractEnd);
+      if (isNaN(end.getTime())) return false;
+      const threshold = new Date();
+      threshold.setMonth(threshold.getMonth() + 2);
+      return end <= threshold;
+    }
+
+    let rawGeoJson = null;
+    let geojsonLayer = null;
+    let activeCrops = new Set();
+    let activeTenants = new Set();
+    let allTenantNames = new Set();
+    let allCropNames = new Set();
+    let activeParcelLabels = new Set();
+    let parcelLabelGroup = null;
+    let tenantLabelGroup = null;
+
+    // --- Шар "Культури" (crop_info) та "Загальний обробіток" (obrobitok_info) ---
+    // ПРИМІТКА: припускаю RPC-функції get_crop_info_geojson() та
+    // get_obrobitok_info_geojson(), за аналогією з get_fields_geojson().
+    // Якщо назви інші — досить поправити ці два рядки .rpc(...) нижче.
+    let rawCropInfo = null;
+    let rawObrobitokInfo = null;
+    let cropAreaTotals = {};
+    let obrobitokTotalArea = 0;
+    let obrobitokVisible = false;
+    let rawTenantInfo = null;
+    let tenantInfoAreaTotals = {};
+    let tenantInfoLayer = null;
+    let tenantSvgRenderer = null;
+    let reassignedLayer = null;
+    let reassignedSvgRenderer = null;
+    let cropInfoLayer = null;
+    let obrobitokLayer = null;
+    let cropSvgRenderer = null;
+
+    async function initApp() {
+      checkAuth();
+      const { data, error } = await supabaseClient.rpc('get_fields_geojson');
+      if (error) return console.error('Помилка завантаження даних:', error);
+
+      rawGeoJson = data;
+      if (rawGeoJson && rawGeoJson.features) {
+        rawGeoJson.features.forEach((f, idx) => {
+          f._internal_id = idx;
+        });
+      }
+
+      const { data: cropData, error: cropError } = await supabaseClient.rpc('get_crop_info_geojson');
+      if (cropError) {
+        console.error('Помилка завантаження crop_info (перевірте назву RPC):', cropError);
+      } else {
+        rawCropInfo = cropData;
+      }
+
+      const { data: obrobitokData, error: obrobitokError } = await supabaseClient.rpc('get_obrobitok_info_geojson');
+      if (obrobitokError) {
+        console.error('Помилка завантаження obrobitok_info (перевірте назву RPC):', obrobitokError);
+      } else {
+        rawObrobitokInfo = obrobitokData;
+        obrobitokTotalArea = 0;
+        if (rawObrobitokInfo && rawObrobitokInfo.features) {
+          rawObrobitokInfo.features.forEach(f => {
+            obrobitokTotalArea += parseFloat(f.properties['Площа']) || parseFloat(f.properties.area) || 0;
+          });
+        }
+      }
+
+      const { data: tenantInfoData, error: tenantInfoError } = await supabaseClient.rpc('get_tenant_info_geojson');
+      if (tenantInfoError) {
+        console.error('Помилка завантаження tenant_info (перевірте назву RPC):', tenantInfoError);
+      } else {
+        rawTenantInfo = tenantInfoData;
+        tenantInfoAreaTotals = {};
+        if (rawTenantInfo && rawTenantInfo.features) {
+          rawTenantInfo.features.forEach(f => {
+            const t = String(f.properties.tenant || '').trim();
+            if (!t) return;
+            const area = parseFloat(f.properties['Площа']) || parseFloat(f.properties.area) || 0;
+            tenantInfoAreaTotals[t] = (tenantInfoAreaTotals[t] || 0) + area;
+          });
+        }
+      }
+
+      rebuildFilterValues();
+      renderControls();
+      renderMap();
+      renderCropInfoLayer();
+      renderObrobitokLayer();
+      renderTenantInfoLayer();
+      renderReassignedLayer();
+      updateObrobitokStat();
+      renderTenantStats();
+      populateCadnumDatalist();
+    }
+
+    // Отримання даних з урахуванням area_ha для 2026 року та fallback значеннями
+    function getFieldDataByYear(properties, year) {
+      const defaultCrop = String(properties.crop || properties.культура || 'інше').trim();
+      // Орендар за 2026 рік зберігається в колонці area_ha
+      const defaultTenant = String(properties.area_ha || properties.tenant || properties.орендар || '—').trim();
+      const defaultRent = String(properties.rent || properties.орендна_плата || '').trim();
+
+      if (year === '2026') {
+        return { 
+          crop: defaultCrop.toLowerCase(), 
+          tenant: defaultTenant, 
+          rent: defaultRent 
+        };
+      }
+
+      const valCrop = properties[`crop_${year}`];
+      const valTenant = properties[`tenant_${year}`];
+      const valRent = properties[`rent_${year}`];
+
+      const crop = (valCrop !== undefined && valCrop !== null && String(valCrop).trim() !== '') 
+        ? String(valCrop).trim().toLowerCase() 
+        : defaultCrop.toLowerCase();
+
+      const tenant = (valTenant !== undefined && valTenant !== null && String(valTenant).trim() !== '') 
+        ? String(valTenant).trim() 
+        : defaultTenant;
+
+      const rent = (valRent !== undefined && valRent !== null && String(valRent).trim() !== '') 
+        ? String(valRent).trim() 
+        : defaultRent;
+
+      return { crop, tenant, rent };
+    }
+
+    // Площа орендаря з урахуванням "заміни паїв": базове значення з tenant_info,
+    // плюс/мінус площі ділянок, задіяних у заміні саме для цього орендаря
+    // (reassigned_role: 'plus' — додається, 'minus' — віднімається).
+    function getAdjustedTenantArea(tenant) {
+      let area = tenantInfoAreaTotals[tenant] || 0;
+      if (rawGeoJson && rawGeoJson.features) {
+        rawGeoJson.features.forEach(f => {
+          const p = f.properties;
+          if (!p.reassigned_tenant || p.reassigned_tenant !== tenant) return;
+          const areaNum = parseFloat(p.Площа) || parseFloat(p.area) || 0;
+          if (p.reassigned_role === 'minus') area -= areaNum;
+          else area += areaNum;
+        });
+      }
+      return area;
+    }
+
+    function rebuildFilterValues() {
+      allTenantNames.clear();
+      if (rawTenantInfo && rawTenantInfo.features) {
+        rawTenantInfo.features.forEach(f => {
+          const t = String(f.properties.tenant || '').trim();
+          if (t) allTenantNames.add(t);
+        });
+      }
+
+      allCropNames.clear();
+      cropAreaTotals = {};
+      if (rawCropInfo && rawCropInfo.features) {
+        rawCropInfo.features.forEach(f => {
+          const crop = String(f.properties.crop || '').trim().toLowerCase();
+          if (!crop) return;
+          allCropNames.add(crop);
+          const area = parseFloat(f.properties['Площа']) || parseFloat(f.properties.area) || 0;
+          cropAreaTotals[crop] = (cropAreaTotals[crop] || 0) + area;
+        });
+      }
+    }
+
+    function onYearChange(newYear) {
+      currentSelectedYear = newYear;
+      rebuildFilterValues();
+      renderControls();
+      renderMap();
+    }
+
+    function renderControls() {
+      const cropBox = document.getElementById('crop-filters');
+      const tenantBox = document.getElementById('tenant-filters');
+      cropBox.innerHTML = '';
+      tenantBox.innerHTML = '';
+
+      allTenantNames.forEach(tenant => {
+        const color = getTenantColor(tenant);
+        const safeTenant = escapeHtml(tenant);
+        const isChecked = activeTenants.has(tenant);
+        const area = getAdjustedTenantArea(tenant);
+        const label = document.createElement('label');
+        label.className = 'flex items-center justify-between p-1.5 rounded-lg bg-agro-deep/60 hover:bg-white/5 border border-white/5 cursor-pointer text-xs transition-all';
+        label.innerHTML = `
+          <div class="flex items-center gap-2 w-full overflow-hidden">
+            <input type="checkbox" value="${safeTenant}" data-group="tenant" ${isChecked ? 'checked' : ''} class="w-3.5 h-3.5 shrink-0 accent-agro-green rounded bg-agro-panel border-white/20">
+            <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: ${color}; box-shadow: 0 0 6px ${color};"></span>
+            <span class="font-medium text-agro-text/90 text-[11px] break-words leading-snug" title="${safeTenant}">${safeTenant} <span class="text-agro-muted normal-case whitespace-nowrap">(${area.toFixed(2)} га)</span></span>
+          </div>
+        `;
+        tenantBox.appendChild(label);
+      });
+
+      allCropNames.forEach(crop => {
+        const color = getCropColor(crop);
+        const safeCrop = escapeHtml(crop);
+        const isChecked = activeCrops.has(crop);
+        const area = cropAreaTotals[crop] || 0;
+        const label = document.createElement('label');
+        label.className = 'flex items-center justify-between p-1.5 rounded-lg bg-agro-deep/60 hover:bg-white/5 border border-white/5 cursor-pointer text-xs transition-all';
+        label.innerHTML = `
+          <div class="flex items-center gap-2 w-full overflow-hidden">
+            <input type="checkbox" value="${safeCrop}" data-group="crop" ${isChecked ? 'checked' : ''} class="w-3.5 h-3.5 shrink-0 accent-agro-green rounded bg-agro-panel border-white/20">
+            <span class="w-4 h-4 flex items-center justify-center shrink-0">${cropIconSvg(crop, color, 14)}</span>
+            <span class="capitalize font-medium text-agro-text/90 text-[11px] truncate">${safeCrop} <span class="text-agro-muted normal-case">(${area.toFixed(2)} га)</span></span>
+          </div>
+        `;
+        cropBox.appendChild(label);
+      });
+
+      document.querySelectorAll('input[data-group]').forEach(cb => cb.addEventListener('change', syncFiltersAndRender));
+    }
+
+    function ensureGreyHatch() {
+      if (!reassignedSvgRenderer || !reassignedSvgRenderer._container) return null;
+      const svg = reassignedSvgRenderer._container;
+      let defs = svg.querySelector('defs');
+      if (!defs) {
+        defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+        svg.insertBefore(defs, svg.firstChild);
+      }
+      const id = 'grey-hatch-reassign';
+      if (defs.querySelector(`[data-pat-id="${id}"]`)) return id;
+      const pattern = document.createElementNS('http://www.w3.org/2000/svg', 'pattern');
+      pattern.setAttribute('id', id);
+      pattern.setAttribute('data-pat-id', id);
+      pattern.setAttribute('width', '8');
+      pattern.setAttribute('height', '8');
+      pattern.setAttribute('patternUnits', 'userSpaceOnUse');
+      pattern.setAttribute('patternTransform', 'rotate(135)');
+      pattern.innerHTML = `<line x1="0" y1="0" x2="0" y2="8" stroke="#9AA0A6" stroke-width="3" stroke-opacity="0.8"></line>`;
+      defs.appendChild(pattern);
+      return id;
+    }
+
+    // Дві замінені ділянки — сіра штриховка поверх, видима лише коли активний
+    // хоча б один фільтр орендарів (щоб було видно винятки на тлі шару tenant_info)
+    function renderReassignedLayer() {
+      if (reassignedLayer) { map.removeLayer(reassignedLayer); reassignedLayer = null; }
+      if (activeTenants.size === 0 || !rawGeoJson || !rawGeoJson.features) return;
+
+      const reassignedFeatures = rawGeoJson.features.filter(f => f.properties.reassigned_tenant);
+      if (!reassignedFeatures.length) return;
+
+      if (!reassignedSvgRenderer) {
+        reassignedSvgRenderer = L.svg({ padding: 0.5, pane: 'obrobitokPane' });
+        reassignedSvgRenderer.addTo(map);
+      }
+      const patId = ensureGreyHatch();
+
+      reassignedLayer = L.geoJSON({ type: 'FeatureCollection', features: reassignedFeatures }, {
+        renderer: reassignedSvgRenderer,
+        interactive: false,
+        style: () => ({
+          fillColor: patId ? `url(#${patId})` : '#9AA0A6',
+          fillOpacity: 0.9,
+          stroke: true,
+          color: '#9AA0A6',
+          weight: 1.5,
+          opacity: 0.85
+        })
+      }).addTo(map);
+    }
+
+    function syncFiltersAndRender() {
+      activeCrops.clear();
+      activeTenants.clear();
+      document.querySelectorAll('input[data-group="crop"]:checked').forEach(cb => activeCrops.add(cb.value));
+      document.querySelectorAll('input[data-group="tenant"]:checked').forEach(cb => activeTenants.add(cb.value));
+      renderMap();
+      renderCropInfoLayer();
+      renderTenantInfoLayer();
+      renderReassignedLayer();
+    }
+
+    function toggleGroup(group, check) {
+      document.querySelectorAll(`input[data-group="${group}"]`).forEach(cb => cb.checked = check);
+      syncFiltersAndRender();
+    }
+
+    function performSearch() {
+      const query = document.getElementById('search-input').value.trim().toLowerCase();
+      if (!query) return;
+
+      let foundLayer = null;
+
+      geojsonLayer.eachLayer(layer => {
+        const p = layer.feature.properties;
+        const cadnum = (p.cadnum || '').toString().toLowerCase();
+        const id = (p.id || '').toString().toLowerCase();
+        const owner = (p.owner || '').toString().toLowerCase();
+        const { tenant } = getFieldDataByYear(p, currentSelectedYear);
+
+        if (cadnum.includes(query) || id === query || owner.includes(query) || tenant.toLowerCase().includes(query)) {
+          foundLayer = layer;
+        }
+      });
+
+      if (foundLayer) {
+        map.fitBounds(foundLayer.getBounds(), { maxZoom: 18, animate: true, padding: [50, 50] });
+        foundLayer.openPopup();
+      } else {
+        alert('Ділянку не знайдено!');
+      }
+    }
+
+    function getPolygonLongAxis(latlngs) {
+      let maxDist = -1;
+      let angle = 0;
+      let ptA = null, ptB = null;
+      for (let i = 0; i < latlngs.length; i++) {
+        const a = latlngs[i];
+        const b = latlngs[(i + 1) % latlngs.length];
+        const dx = (b.lng - a.lng) * Math.cos(a.lat * Math.PI / 180);
+        const dy = (b.lat - a.lat);
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > maxDist) {
+          maxDist = dist;
+          angle = Math.atan2(dy, dx) * 180 / Math.PI;
+          ptA = a; ptB = b;
+        }
+      }
+      if (angle > 90) angle -= 180;
+      if (angle < -90) angle += 180;
+      return { angle, ptA, ptB };
+    }
+
+    // Розмір шрифту підганяється під реальну довжину довгої сторони в пікселях
+    // на поточному масштабі — тому напис лишається в межах саме своєї ділянки,
+    // а не "розповзається" на сусідні паралельні смуги.
+    function fitFontSizeToPixels(text, pixelLength, base, min) {
+      base = base || 11; min = min || 5;
+      const len = String(text).length;
+      if (len === 0) return base;
+      const avgCharWidthFactor = 0.62;
+      const estimatedWidthAtBase = len * avgCharWidthFactor * base;
+      if (estimatedWidthAtBase <= pixelLength) return base;
+      const scaled = pixelLength / (len * avgCharWidthFactor);
+      return Math.max(min, Math.round(scaled * 10) / 10);
+    }
+
+    function syncParcelLabelsAndRender() {
+      activeParcelLabels.clear();
+      document.querySelectorAll('input[data-group="parcel-label"]:checked').forEach(cb => activeParcelLabels.add(cb.value));
+      updateLabelsVisibility();
+    }
+
+    function toggleParcelLabelGroup(check) {
+      document.querySelectorAll('input[data-group="parcel-label"]').forEach(cb => cb.checked = check);
+      syncParcelLabelsAndRender();
+    }
+
+    function updateLabelsVisibility() {
+      if (!geojsonLayer) return;
+      const currentZoom = map.getZoom();
+
+      if (!parcelLabelGroup) parcelLabelGroup = L.layerGroup().addTo(map);
+      parcelLabelGroup.clearLayers();
+
+      const showNumber = activeParcelLabels.has('number');
+      const showCadnum = activeParcelLabels.has('cadnum');
+      const showArea = activeParcelLabels.has('area');
+      const showTenant = activeParcelLabels.has('tenant');
+      const showAnyAxisLabel = showCadnum || showArea || showTenant;
+
+      geojsonLayer.eachLayer(layer => {
+        const p = layer.feature.properties;
+        const paiId = p.id || '';
+
+        if (currentZoom >= 15 && showNumber && paiId !== '') {
+          if (!layer.getTooltip()) {
+            layer.bindTooltip(`
+              <div class="pai-number-badge">${escapeHtml(paiId)}</div>
+            `, {
+              permanent: true,
+              direction: 'center',
+              className: 'polygon-id-label'
+            });
+          }
+        } else if (layer.getTooltip()) {
+          layer.unbindTooltip();
+        }
+
+        if (currentZoom >= 15 && showAnyAxisLabel) {
+          const lines = [];
+          if (showCadnum && p.cadnum) lines.push(String(p.cadnum));
+          if (showArea) {
+            const areaNum = parseFloat(p.Площа) || parseFloat(p.area) || 0;
+            lines.push(areaNum.toFixed(2) + ' га');
+          }
+          if (showTenant) {
+            const displayTenant = p.reassigned_tenant || getFieldDataByYear(p, currentSelectedYear).tenant;
+            if (displayTenant) lines.push(String(displayTenant));
+            if (p.reassigned_tenant) lines.push('Заміна');
+          }
+          if (lines.length) {
+            let ring = null;
+            try {
+              const ll = layer.getLatLngs();
+              ring = Array.isArray(ll[0][0]) ? ll[0][0] : ll[0];
+            } catch (e) { ring = null; }
+
+            if (ring && ring.length >= 2) {
+              const { angle, ptA, ptB } = getPolygonLongAxis(ring);
+              const center = layer.getBounds().getCenter();
+
+              let pixelLength = 70;
+              if (ptA && ptB) {
+                const pA = map.latLngToLayerPoint(ptA);
+                const pB = map.latLngToLayerPoint(ptB);
+                pixelLength = Math.max(20, Math.hypot(pB.x - pA.x, pB.y - pA.y) * 0.9);
+              }
+
+              const linesHtml = lines.map(line => `<div style="font-size:${fitFontSizeToPixels(line, pixelLength)}px;">${escapeHtml(line)}</div>`).join('');
+              const icon = L.divIcon({
+                className: 'parcel-axis-label',
+                html: `<div style="transform: translate(-50%, -50%) rotate(${angle}deg);">${linesHtml}</div>`,
+                iconSize: [0, 0]
+              });
+              L.marker(center, { icon, interactive: false, keyboard: false }).addTo(parcelLabelGroup);
+            }
+          }
+        }
+      });
+    }
+
+    map.on('zoomend', updateLabelsVisibility);
+
+    function renderMap() {
+      if (geojsonLayer) map.removeLayer(geojsonLayer);
+
+      let visibleCount = 0;
+      let totalArea = 0;
+
+      geojsonLayer = L.geoJSON(rawGeoJson, {
+        style: (feature) => {
+          if (isContractExpiringSoon(feature.properties.contract_end)) {
+            return {
+              fillColor: '#D6483D',
+              fillOpacity: 0.55,
+              color: '#D6483D',
+              weight: 2.5,
+              opacity: 1
+            };
+          }
+          return {
+            fillColor: '#F0D666',
+            fillOpacity: 0.4,
+            color: '#E08A3C',
+            weight: 2,
+            opacity: 0.9
+          };
+        },
+        onEachFeature: (feature, layer) => {
+          visibleCount++;
+          const p = feature.properties;
+          const areaNum = parseFloat(p.Площа) || parseFloat(p.area) || 0;
+          totalArea += areaNum;
+
+          layer.on({
+            mouseover: (e) => { e.target.setStyle({ weight: 4, color: '#FFFFFF', fillOpacity: 0.65 }); e.target.bringToFront(); },
+            mouseout: (e) => { geojsonLayer.resetStyle(e.target); }
+          });
+
+          layer.bindPopup(() => getPopupHTML(feature, areaNum), { 
+            maxWidth: 460,
+            autoPanPaddingTopLeft: [10, 90],
+            autoPanPaddingBottomRight: [10, 20]
+          });
+        }
+      }).addTo(map);
+
+      if (!hasFitInitialBounds && geojsonLayer.getBounds().isValid()) {
+        map.fitBounds(geojsonLayer.getBounds(), { padding: [40, 40] });
+        hasFitInitialBounds = true;
+      }
+
+      updateLabelsVisibility();
+
+      document.getElementById('stat-count').innerText = visibleCount;
+      document.getElementById('stat-area').innerText = totalArea.toFixed(2) + ' га';
+    }
+
+    // --- Шар "Культури" з таблиці crop_info: візерунок з міні-значків культури ---
+    // Некліка­бельний, без окантовки — лише патерн усередині полігону.
+    function ensureCropPattern(crop, color) {
+      if (!cropSvgRenderer || !cropSvgRenderer._container) return null;
+      const svg = cropSvgRenderer._container;
+      let defs = svg.querySelector('defs');
+      if (!defs) {
+        defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+        svg.insertBefore(defs, svg.firstChild);
+      }
+      const safeId = 'crop-pat-' + crop.replace(/[^a-zA-Zа-яА-ЯіІїЇєЄ0-9]/g, '_').toLowerCase();
+      if (defs.querySelector(`[data-pat-id="${safeId}"]`)) return safeId;
+
+      const pattern = document.createElementNS('http://www.w3.org/2000/svg', 'pattern');
+      pattern.setAttribute('id', safeId);
+      pattern.setAttribute('data-pat-id', safeId);
+      pattern.setAttribute('width', '46');
+      pattern.setAttribute('height', '46');
+      pattern.setAttribute('patternUnits', 'userSpaceOnUse');
+      pattern.innerHTML = `
+        <rect width="46" height="46" fill="${color}" fill-opacity="0.16"></rect>
+        <g transform="translate(15,15) scale(0.65)" fill="none" stroke="#000000" stroke-width="3.1" stroke-linecap="round" stroke-linejoin="round">${getCropIconPaths(crop)}</g>
+      `;
+      defs.appendChild(pattern);
+      return safeId;
+    }
+
+    function renderCropInfoLayer() {
+      if (cropInfoLayer) { map.removeLayer(cropInfoLayer); cropInfoLayer = null; }
+      if (!rawCropInfo || !rawCropInfo.features || activeCrops.size === 0) return;
+
+      if (!cropSvgRenderer) {
+        cropSvgRenderer = L.svg({ padding: 0.5, pane: 'cropInfoPane' });
+        cropSvgRenderer.addTo(map);
+      }
+      activeCrops.forEach(crop => ensureCropPattern(crop, getCropColor(crop)));
+
+      cropInfoLayer = L.geoJSON(rawCropInfo, {
+        filter: (feature) => activeCrops.has(String(feature.properties.crop || '').trim().toLowerCase()),
+        renderer: cropSvgRenderer,
+        interactive: false,
+        style: (feature) => {
+          const crop = String(feature.properties.crop || '').trim().toLowerCase();
+          const color = getCropColor(crop);
+          const patternId = ensureCropPattern(crop, color);
+          return {
+            fillColor: patternId ? `url(#${patternId})` : color,
+            fillOpacity: 1,
+            stroke: true,
+            color: '#000000',
+            weight: 1.2,
+            opacity: 0.75,
+            dashArray: '4,3'
+          };
+        }
+      }).addTo(map);
+    }
+
+    // --- Шар "Загальний обробіток" з таблиці obrobitok_info ---
+    // Некліка­бельний півпрозорий шар; підпис площі і кнопка "+" зі списком ділянок.
+    function renderObrobitokLayer() {
+      if (obrobitokLayer) { map.removeLayer(obrobitokLayer); obrobitokLayer = null; }
+      if (!obrobitokVisible || !rawObrobitokInfo || !rawObrobitokInfo.features) return;
+
+      obrobitokLayer = L.geoJSON(rawObrobitokInfo, {
+        interactive: false,
+        pane: 'obrobitokPane',
+        style: () => ({
+          fillColor: '#5B7FBF',
+          fillOpacity: 0.4,
+          color: '#B9D1FF',
+          weight: 3,
+          opacity: 0.95
+        }),
+        onEachFeature: (feature, layer) => {
+          const area = parseFloat(feature.properties['Площа']) || parseFloat(feature.properties.area) || 0;
+          const sumId = feature.properties.sum_id;
+          layer.bindTooltip(`
+            <div class="obrobitok-label">
+              <span class="obrobitok-area">${area.toFixed(2)} га</span>
+              <button type="button" class="obrobitok-plus" onclick="window.showObrobitokList('${encodeURIComponent(String(sumId == null ? '' : sumId))}')" title="Список ділянок">+</button>
+            </div>
+          `, {
+            permanent: true,
+            direction: 'center',
+            className: 'obrobitok-tooltip',
+            pane: 'obrobitokLabelPane',
+            interactive: true
+          });
+        }
+      }).addTo(map);
+    }
+
+    function toggleObrobitok(checked) {
+      obrobitokVisible = checked;
+      renderObrobitokLayer();
+    }
+
+    // --- Шар "Орендарі" з таблиці tenant_info: штриховка + назва курсивом (maroon) ---
+    // над площею як дріб, вздовж довгої сторони. Некліка­бельний, лише наочний.
+    function ensureWhiteHatch() {
+      if (!tenantSvgRenderer || !tenantSvgRenderer._container) return null;
+      const svg = tenantSvgRenderer._container;
+      let defs = svg.querySelector('defs');
+      if (!defs) {
+        defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+        svg.insertBefore(defs, svg.firstChild);
+      }
+      const id = 'tenant-hatch-white';
+      if (defs.querySelector(`[data-pat-id="${id}"]`)) return id;
+      const pattern = document.createElementNS('http://www.w3.org/2000/svg', 'pattern');
+      pattern.setAttribute('id', id);
+      pattern.setAttribute('data-pat-id', id);
+      pattern.setAttribute('width', '10');
+      pattern.setAttribute('height', '10');
+      pattern.setAttribute('patternUnits', 'userSpaceOnUse');
+      pattern.setAttribute('patternTransform', 'rotate(45)');
+      pattern.innerHTML = `<line x1="0" y1="0" x2="0" y2="10" stroke="#FFFFFF" stroke-width="4.5" stroke-opacity="0.8"></line>`;
+      defs.appendChild(pattern);
+      return id;
+    }
+
+    function renderTenantInfoLayer() {
+      if (tenantInfoLayer) { map.removeLayer(tenantInfoLayer); tenantInfoLayer = null; }
+      if (!tenantLabelGroup) tenantLabelGroup = L.layerGroup().addTo(map);
+      tenantLabelGroup.clearLayers();
+      if (!rawTenantInfo || !rawTenantInfo.features || activeTenants.size === 0) return;
+
+      if (!tenantSvgRenderer) {
+        tenantSvgRenderer = L.svg({ padding: 0.5, pane: 'obrobitokPane' });
+        tenantSvgRenderer.addTo(map);
+      }
+      const hatchId = ensureWhiteHatch();
+
+      tenantInfoLayer = L.geoJSON(rawTenantInfo, {
+        filter: (feature) => activeTenants.has(String(feature.properties.tenant || '').trim()),
+        renderer: tenantSvgRenderer,
+        interactive: false,
+        style: (feature) => {
+          const t = String(feature.properties.tenant || '').trim();
+          const color = getTenantColor(t);
+          return {
+            fillColor: hatchId ? `url(#${hatchId})` : '#FFFFFF',
+            fillOpacity: 0.9,
+            stroke: true,
+            color: color,
+            weight: 3,
+            opacity: 0.95
+          };
+        },
+        onEachFeature: (feature, layer) => {
+          const t = String(feature.properties.tenant || '').trim();
+          const color = getTenantColor(t);
+          const area = parseFloat(feature.properties['Площа']) || parseFloat(feature.properties.area) || 0;
+          let ring = null;
+          try {
+            const ll = layer.getLatLngs();
+            ring = Array.isArray(ll[0][0]) ? ll[0][0] : ll[0];
+          } catch (e) { ring = null; }
+
+          let angle = 0, pixelLength = 90;
+          if (ring && ring.length >= 2) {
+            const axis = getPolygonLongAxis(ring);
+            angle = axis.angle;
+            if (axis.ptA && axis.ptB) {
+              const pA = map.latLngToLayerPoint(axis.ptA);
+              const pB = map.latLngToLayerPoint(axis.ptB);
+              pixelLength = Math.max(30, Math.hypot(pB.x - pA.x, pB.y - pA.y) * 0.85);
+            }
+          }
+
+          const nameText = String(t);
+          const areaText = area.toFixed(2) + ' га';
+          const nameSize = fitFontSizeToPixels(nameText, pixelLength, 13, 7);
+          const areaSize = fitFontSizeToPixels(areaText, pixelLength, 11, 6);
+
+          const center = layer.getBounds().getCenter();
+          const icon = L.divIcon({
+            className: 'tenant-info-label',
+            html: `<div style="transform: translate(-50%, -50%) rotate(${angle}deg); color:${color};">
+                     <div class="tenant-info-name" style="font-size:${nameSize}px;">${escapeHtml(nameText)}</div>
+                     <div class="tenant-info-rule" style="background:${color};"></div>
+                     <div class="tenant-info-area" style="font-size:${areaSize}px;">${areaText}</div>
+                   </div>`,
+            iconSize: [0, 0]
+          });
+          L.marker(center, { icon, interactive: false, keyboard: false }).addTo(tenantLabelGroup);
+        }
+      }).addTo(map);
+    }
+
+    function renderTenantStats() {
+      // Площа по орендарях тепер одразу вбудована в renderControls(); окремого оновлення не треба.
+    }
+
+    function updateObrobitokStat() {
+      const el = document.getElementById('stat-obrobitok');
+      if (el) el.innerText = obrobitokTotalArea.toFixed(2) + ' га';
+    }
+
+    window.showObrobitokList = function(encodedSumId) {
+      const raw = decodeURIComponent(encodedSumId || '');
+      const body = document.getElementById('obrobitok-modal-body');
+      let items = [];
+      try {
+        const parsed = JSON.parse(raw);
+        items = Array.isArray(parsed) ? parsed : [parsed];
+      } catch (e) {
+        items = raw.split(/[,;\n]+/).map(s => s.trim()).filter(Boolean);
+      }
+      body.innerHTML = items.length
+        ? items.map(it => `<div class="py-1.5 border-b border-white/5 last:border-0">${escapeHtml(String(it))}</div>`).join('')
+        : '<div class="text-agro-muted">Немає даних</div>';
+      document.getElementById('obrobitok-modal').classList.remove('hidden');
+    };
+
+    window.closeObrobitokList = function() {
+      document.getElementById('obrobitok-modal').classList.add('hidden');
+    };
+
+    window.selectPopupYear = function(e, featureIndex, year) {
+      if (e) {
+        e.stopPropagation();
+        e.preventDefault();
+      }
+      const feature = rawGeoJson.features[featureIndex];
+      if (feature && map._popup) {
+        const areaNum = parseFloat(feature.properties.Площа) || parseFloat(feature.properties.area) || 0;
+        const newHtml = getPopupHTML(feature, areaNum, year);
+        map._popup.setContent(newHtml);
+      }
+    };
+
+    function getPopupHTML(feature, areaNum, selectedYear = currentSelectedYear) {
+      const p = feature.properties;
+      const featureIndex = feature._internal_id;
+      const cadnum = p.cadnum || '';
+      const id = p.id || '';
+      const address = p.address || '';
+      const owner = p.owner || '';
+      const contractEnd = String(p.contract_end || '').slice(0, 10);
+
+      const { crop, tenant } = getFieldDataByYear(p, selectedYear);
+      const strokeColor = getTenantColor(tenant);
+      const cropColor = getCropColor(crop);
+      const isAdmin = currentUserRole === 'admin';
+
+      return `
+        <div style="font-family: 'IBM Plex Sans', sans-serif;" onclick="event.stopPropagation()">
+          
+          <!-- 1. КАДАСТРОВИЙ НОМЕР -->
+          <div class="pop-cad-box">
+            <div class="pop-cad-lbl">Кадастровий номер</div>
+            ${isAdmin ? `
+              <input id="edit-cadnum-${featureIndex}" type="text" value="${escapeHtml(cadnum)}" placeholder="Кадастровий номер" onclick="event.stopPropagation()" class="w-full bg-agro-panel text-agro-gold font-mono font-bold border border-white/15 text-xs sm:text-sm rounded-lg p-1.5 focus:outline-none focus:border-agro-green mt-1">
+            ` : `
+              <div class="pop-cad-val">${escapeHtml(cadnum || '—')}</div>
+            `}
+          </div>
+
+          <!-- 2. НОМЕР ПАЮ -->
+          <div class="pop-pai-box">
+            <div class="pop-pai-lbl">Номер паю:</div>
+            ${isAdmin ? `
+              <div class="flex items-center gap-1">
+                <span class="text-xs font-bold text-agro-greenlight">Пай №</span>
+                <input id="edit-id-${featureIndex}" type="text" value="${escapeHtml(id)}" placeholder="№" onclick="event.stopPropagation()" class="w-20 bg-agro-panel text-agro-greenlight font-bold border border-white/15 text-xs rounded-md px-2 py-1 text-center focus:outline-none focus:border-agro-green">
+              </div>
+            ` : `
+              <span class="pop-pai-val">Пай № ${escapeHtml(id || 'б/н')}</span>
+            `}
+          </div>
+
+          <!-- ТІЛО СПЛИВАЮЧОГО ВІКНА -->
+          <div class="pop-body">
+            
+            <!-- 3. Орендар -->
+            <div class="pop-row-col">
+              <div class="pop-lbl" style="margin-bottom: 4px;">Орендар:</div>
+              ${isAdmin ? `
+                <input id="edit-tenant-${featureIndex}" type="text" value="${escapeHtml(tenant)}" placeholder="Орендар" onclick="event.stopPropagation()" class="w-full bg-agro-panel text-agro-text border border-white/15 text-xs sm:text-sm rounded-lg p-2 focus:outline-none focus:border-agro-green font-sans">
+              ` : `
+                <div class="pop-val" style="word-break: break-word; display: flex; align-items: center; gap: 8px;">
+                  <span style="width: 10px; height: 10px; border-radius: 50%; background-color: ${strokeColor}; display: inline-block; flex-shrink: 0; box-shadow: 0 0 6px${strokeColor};"></span>
+                  <span>${escapeHtml(tenant)}</span>
+                </div>
+              `}
+            </div>
+
+            <!-- 4. Дата закінчення договору оренди -->
+            <div class="pop-row">
+              <span class="pop-lbl">Дата закінч. договору:</span>
+              ${isAdmin ? `
+                <input id="edit-contract_end-${featureIndex}" type="date" value="${escapeHtml(contractEnd)}" onclick="event.stopPropagation()" class="bg-agro-panel text-agro-text border border-white/15 text-xs sm:text-sm rounded-md px-2 py-1 focus:outline-none focus:border-agro-green">
+              ` : `
+                <span class="pop-val" style="${isContractExpiringSoon(contractEnd) ? 'color:#E8776D;' : ''}">${contractEnd ? escapeHtml(contractEnd) : '—'}</span>
+              `}
+            </div>
+
+            <!-- 5. Площа -->
+            <div class="pop-row">
+              <span class="pop-lbl">Площа:</span>
+              <span class="pop-val-area">${areaNum.toFixed(4)} га</span>
+            </div>
+
+            <!-- 6. Адреса -->
+            <div class="pop-row-col">
+              <div class="pop-lbl" style="margin-bottom: 4px;">Адреса:</div>
+              ${isAdmin ? `
+                <input id="edit-address-${featureIndex}" type="text" value="${escapeHtml(address)}" placeholder="Адреса" onclick="event.stopPropagation()" class="w-full bg-agro-panel text-agro-text border border-white/15 text-xs sm:text-sm rounded-lg p-2 focus:outline-none focus:border-agro-green font-sans">
+              ` : `
+                <div class="pop-val" style="word-break: break-word;">${escapeHtml(address || 'Адреса не вказана')}</div>
+              `}
+            </div>
+
+            <!-- 8. Власник -->
+            <div class="pop-row-col">
+              <div class="pop-lbl" style="margin-bottom: 4px;">Власник:</div>
+              ${isAdmin ? `
+                <input id="edit-owner-${featureIndex}" type="text" value="${escapeHtml(owner)}" placeholder="Власник" onclick="event.stopPropagation()" class="w-full bg-agro-panel text-agro-text border border-white/15 text-xs sm:text-sm rounded-lg p-2 focus:outline-none focus:border-agro-green font-sans">
+              ` : `
+                <div class="pop-val" style="word-break: break-word;">${escapeHtml(owner || 'Не вказано')}</div>
+              `}
+            </div>
+
+            ${isAdmin ? `
+            <!-- 9. Заміна паїв -->
+            <div class="pop-row-col">
+              <div class="pop-lbl" style="margin-bottom: 4px;">Заміна паїв:</div>
+              ${p.reassigned_tenant ? `
+                <div class="pop-val" style="margin-bottom:6px; font-size:11px;">
+                  Замінено пай на пай <b>${escapeHtml(p.reassigned_pair_cadnum || '')}</b> (для «${escapeHtml(p.reassigned_tenant)}»)
+                  <button type="button" onclick="event.stopPropagation(); window.cancelReassignment(${featureIndex})" style="margin-left:8px; font-size:10px; color:#E8776D; background:none; border:none; cursor:pointer; text-decoration:underline; padding:0;">скасувати</button>
+                </div>
+              ` : ''}
+              <select id="reassign-tenant-${featureIndex}" onclick="event.stopPropagation()" class="w-full bg-agro-panel text-agro-text border border-white/15 text-xs rounded-lg p-2 mb-1.5 focus:outline-none focus:border-agro-green">
+                <option value="">Оберіть орендаря...</option>
+                ${Array.from(allTenantNames).map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('')}
+              </select>
+              <input id="reassign-cadnum-${featureIndex}" type="text" list="all-cadnums-list" placeholder="Кадастровий номер іншої ділянки" onclick="event.stopPropagation()" class="w-full bg-agro-panel text-agro-text border border-white/15 text-xs rounded-lg p-2 mb-1.5 focus:outline-none focus:border-agro-green">
+              <button type="button" onclick="window.applyTenantReassignment(event, ${featureIndex})" class="w-full bg-agro-gold hover:bg-agro-goldlight text-agro-bg font-bold text-xs py-2 rounded-lg transition-colors">Застосувати заміну</button>
+            </div>
+            ` : (p.reassigned_tenant ? `
+            <div class="pop-row-col">
+              <div class="pop-lbl" style="margin-bottom: 4px;">Заміна паїв:</div>
+              <div class="pop-val">Замінено пай на пай ${escapeHtml(p.reassigned_pair_cadnum || '')}</div>
+            </div>
+            ` : '')}
+
+            ${isAdmin ? `
+              <button onclick="window.saveFieldEdits(event, ${featureIndex}, '${selectedYear}')" class="pop-save-btn">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h11l5 5v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"></path><path d="M8 3v5h8V3"></path><path d="M8 21v-7h8v7"></path></svg>
+                Зберегти зміни
+              </button>
+            ` : ''}
+
+          </div>
+
+        </div>
+      `;
+    }
+
+    window.saveFieldEdits = async function(e, featureIndex, year) {
+      if (e) e.stopPropagation();
+
+      const feature = rawGeoJson.features[featureIndex];
+      if (!feature) {
+        alert('Помилка: ділянку не знайдено!');
+        return;
+      }
+
+      const getVal = (field) => {
+        const el = document.getElementById(`edit-${field}-${featureIndex}`);
+        return el ? el.value.trim() : null;
+      };
+
+      const newCadnum = getVal('cadnum');
+      const newPaiId = getVal('id');
+      const newTenant = getVal('tenant');
+      const newContractEnd = getVal('contract_end');
+      const newAddress = getVal('address');
+      const newCrop = getVal('crop');
+      const newOwner = getVal('owner');
+
+      const updateData = {};
+
+      if (newCadnum !== null) updateData.cadnum = newCadnum === '' ? null : newCadnum;
+      if (newAddress !== null) updateData.address = newAddress === '' ? null : newAddress;
+      if (newOwner !== null) updateData.owner = newOwner === '' ? null : newOwner;
+      if (newContractEnd !== null) updateData.contract_end = newContractEnd === '' ? null : newContractEnd;
+
+      if (newPaiId !== null) {
+        if (newPaiId === '') {
+          updateData.id = null;
+        } else {
+          const parsedPaiId = parseInt(newPaiId, 10);
+          if (!isNaN(parsedPaiId)) updateData.id = parsedPaiId;
+        }
+      }
+
+      // 2026 рік оновлює саме area_ha (як колоноку з орендарем)
+      if (year === '2026') {
+        if (newCrop !== null) updateData.crop = newCrop === '' ? null : newCrop;
+        if (newTenant !== null) updateData.area_ha = newTenant === '' ? null : newTenant;
+      } else {
+        if (newCrop !== null) updateData[`crop_${year}`] = newCrop === '' ? null : newCrop;
+        if (newTenant !== null) updateData[`tenant_${year}`] = newTenant === '' ? null : newTenant;
+      }
+
+      let queryBuilder = supabaseClient.from('fields').update(updateData);
+      const origProps = feature.properties;
+
+      if (origProps.id !== undefined && origProps.id !== null && origProps.id !== '') {
+        const parsedId = parseInt(origProps.id, 10);
+        queryBuilder = queryBuilder.eq('id', !isNaN(parsedId) ? parsedId : origProps.id);
+      } else if (origProps.cadnum !== undefined && origProps.cadnum !== null && origProps.cadnum !== '') {
+        queryBuilder = queryBuilder.eq('cadnum', origProps.cadnum);
+      } else if (origProps.owner !== undefined && origProps.owner !== null && origProps.owner !== '') {
+        queryBuilder = queryBuilder.eq('owner', origProps.owner);
+      } else {
+        alert('Помилка: У ділянки відсутні ідентифікатори (id, cadnum, owner) для запису!');
+        return;
+      }
+
+      const { error } = await queryBuilder;
+
+      if (error) {
+        alert('Помилка збереження: ' + error.message);
+      } else {
+        alert(`Зміни за ${year} рік успішно збережено!`);
+
+        if (newCadnum !== null) feature.properties.cadnum = newCadnum;
+        if (newPaiId !== null) feature.properties.id = newPaiId === '' ? null : newPaiId;
+        if (newAddress !== null) feature.properties.address = newAddress;
+        if (newOwner !== null) feature.properties.owner = newOwner;
+        if (newContractEnd !== null) feature.properties.contract_end = newContractEnd;
+
+        if (year === '2026') {
+          if (newCrop !== null) feature.properties.crop = newCrop;
+          if (newTenant !== null) feature.properties.area_ha = newTenant;
+        } else {
+          if (newCrop !== null) feature.properties[`crop_${year}`] = newCrop;
+          if (newTenant !== null) feature.properties[`tenant_${year}`] = newTenant;
+        }
+
+        rebuildFilterValues();
+        renderControls();
+        renderMap();
+
+        if (map._popup) {
+          const areaNum = parseFloat(feature.properties.Площа) || parseFloat(feature.properties.area) || 0;
+          map._popup.setContent(getPopupHTML(feature, areaNum, year));
+        }
+      }
+    };
+
+    function populateCadnumDatalist() {
+      const list = document.getElementById('all-cadnums-list');
+      if (!list || !rawGeoJson || !rawGeoJson.features) return;
+      list.innerHTML = rawGeoJson.features
+        .map(f => f.properties.cadnum)
+        .filter(Boolean)
+        .map(c => `<option value="${escapeHtml(String(c))}"></option>`)
+        .join('');
+    }
+
+    window.applyTenantReassignment = async function(e, featureIndex) {
+      if (e) e.stopPropagation();
+      const tenantSelect = document.getElementById(`reassign-tenant-${featureIndex}`);
+      const cadnumInput = document.getElementById(`reassign-cadnum-${featureIndex}`);
+      const targetTenant = tenantSelect ? tenantSelect.value.trim() : '';
+      const otherCadnum = cadnumInput ? cadnumInput.value.trim() : '';
+
+      if (!targetTenant) { alert('Оберіть орендаря зі списку.'); return; }
+      if (!otherCadnum) { alert('Введіть кадастровий номер іншої ділянки.'); return; }
+
+      const currentFeature = rawGeoJson.features[featureIndex];
+      if (!currentFeature) return;
+      const currentCadnum = currentFeature.properties.cadnum;
+
+      if (String(otherCadnum) === String(currentCadnum)) {
+        alert('Кадастровий номер іншої ділянки збігається з поточною. Введіть іншу ділянку.');
+        return;
+      }
+
+      const otherFeature = rawGeoJson.features.find(f => String(f.properties.cadnum || '').trim() === otherCadnum);
+      if (!otherFeature) {
+        alert('Ділянку з таким кадастровим номером не знайдено.');
+        return;
+      }
+
+      const { error: err1 } = await supabaseClient
+        .from('fields')
+        .update({ reassigned_tenant: targetTenant, reassigned_pair_cadnum: otherCadnum, reassigned_role: 'plus' })
+        .eq('cadnum', currentCadnum);
+      if (err1) {
+        alert('Не вдалося зберегти заміну: ' + err1.message);
+        return;
+      }
+
+      const { error: err2 } = await supabaseClient
+        .from('fields')
+        .update({ reassigned_tenant: targetTenant, reassigned_pair_cadnum: currentCadnum, reassigned_role: 'minus' })
+        .eq('cadnum', otherCadnum);
+      if (err2) {
+        alert('Перша ділянка збережена, але другу зберегти не вдалося: ' + err2.message);
+        return;
+      }
+
+      currentFeature.properties.reassigned_tenant = targetTenant;
+      currentFeature.properties.reassigned_pair_cadnum = otherCadnum;
+      currentFeature.properties.reassigned_role = 'plus';
+      otherFeature.properties.reassigned_tenant = targetTenant;
+      otherFeature.properties.reassigned_pair_cadnum = currentCadnum;
+      otherFeature.properties.reassigned_role = 'minus';
+
+      alert('Заміну паїв збережено.');
+      renderControls();
+      renderMap();
+      renderTenantInfoLayer();
+      renderReassignedLayer();
+      updateLabelsVisibility();
+      if (map._popup) map.closePopup();
+    };
+
+    window.cancelReassignment = async function(featureIndex) {
+      const feature = rawGeoJson.features[featureIndex];
+      if (!feature) return;
+      const cadnum = feature.properties.cadnum;
+      const pairCadnum = feature.properties.reassigned_pair_cadnum;
+      const cadnumsToClear = [cadnum];
+      if (pairCadnum) cadnumsToClear.push(pairCadnum);
+
+      const { error } = await supabaseClient
+        .from('fields')
+        .update({ reassigned_tenant: null, reassigned_pair_cadnum: null, reassigned_role: null })
+        .in('cadnum', cadnumsToClear);
+
+      if (error) {
+        alert('Не вдалося скасувати заміну: ' + error.message);
+        return;
+      }
+
+      rawGeoJson.features.forEach(f => {
+        if (cadnumsToClear.includes(f.properties.cadnum)) {
+          f.properties.reassigned_tenant = null;
+          f.properties.reassigned_pair_cadnum = null;
+          f.properties.reassigned_role = null;
+        }
+      });
+
+      renderControls();
+      renderMap();
+      renderTenantInfoLayer();
+      renderReassignedLayer();
+      updateLabelsVisibility();
+      if (map._popup) map.closePopup();
+    };
+
+    initApp();
+  </script>
+</body>
+</html>
